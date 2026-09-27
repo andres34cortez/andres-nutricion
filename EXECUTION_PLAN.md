@@ -1,6 +1,7 @@
 # Plan de ejecución
 
 Orden acordado: entrenamiento al final; agregar Google OAuth.
+Hosting elegido por el usuario: Vercel. Falta elegir/configurar PostgreSQL administrado y vincular el proyecto; esta decisión no implica desplegar ahora ni contratar servicios pagos.
 
 Actualización 27/09/2026: primera etapa de registros y fotos implementada. Las casillas marcadas incluyen comprobación automatizada; no equivalen a publicación ni a prueba en iPhone real.
 
@@ -8,6 +9,7 @@ Actualización 27/09/2026: primera etapa de registros y fotos implementada. Las 
 - [x] Fecha/hora y zona horaria coherentes; edición de registros anteriores.
 - [x] Alta, edición y eliminación de comidas, peso y actividad con validación y ownership.
 - [x] Perfil persistente y errores visibles; bloqueo de doble envío mientras guarda y actualización de pantalla separada de escritura confirmada.
+- [x] Altura destacada en primer paso del cuestionario y en Perfil; centímetros, decimales, persistencia y validación. Sin altura inventada; si falta se solicita en onboarding.
 - [x] Pruebas de persistencia y fechas, incluidos límites de día/mes/año y aislamiento entre usuarios.
 - [x] Navegador real en viewport móvil 390×844: login, alta/edición/recarga/borrado de los tres tipos de registro, validación en PostgreSQL y sin desborde horizontal. Corregido aviso que tapaba opciones del menú.
 - [ ] Idempotencia en servidor para reintentos después de una respuesta de red incierta. Por ahora se indica revisar el historial antes de reintentar.
@@ -35,9 +37,9 @@ Actualización 27/09/2026: primera etapa de registros y fotos implementada. Las 
 
 ## 5. Publicación
 - [ ] Revisar responsive, accesibilidad y recorridos completos.
-- [x] Lint, tipos, 41 tests, build y smoke tests para este checkpoint.
+- [x] Lint, tipos y 45 tests; build y smoke tests del checkpoint. Altura comprobada también con API/DB y navegador.
 - [x] Test reproducible `pnpm test:browser` con Chrome aislado y cuenta temporal; no sustituye iPhone real ni recorre aún todas las funcionalidades.
-- [ ] Configurar hosting/DB administrada y secretos cuando esté disponible el destino.
+- [ ] Vincular el repositorio a Vercel, configurar PostgreSQL administrado y secretos de producción, aplicar migraciones y desplegar.
 - [ ] Verificar en iPhone real (requiere dispositivo).
 
 ## 6. Entrenamiento — último

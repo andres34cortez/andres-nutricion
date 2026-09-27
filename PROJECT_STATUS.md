@@ -2,6 +2,8 @@
 
 Checkpoint actualizado el 27 de septiembre de 2026.
 
+Para continuar con otra IA, leer primero `CONTINUAR_CON_OTRA_IA.md`. Última mejora: altura destacada en cuestionario y Perfil, sin respaldo ficticio de 178 cm, persistencia verificada con API/DB y navegador. Resultado actual: 45 tests, lint y TypeScript aprobados. Hosting elegido: Vercel; aún no desplegado.
+
 ## Actualización de registros y fotos — 27/09, segunda etapa
 
 Este apartado reemplaza los conteos y pendientes anteriores cuando difieren. El plan vigente está en `EXECUTION_PLAN.md`.

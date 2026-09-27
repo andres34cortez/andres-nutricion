@@ -1,5 +1,7 @@
 # Nutrición Andrés
 
+Para retomar con otra IA o después de perder el contexto, leer [CONTINUAR_CON_OTRA_IA.md](CONTINUAR_CON_OTRA_IA.md) y [EXECUTION_PLAN.md](EXECUTION_PLAN.md).
+
 Aplicación mobile-first/PWA para registrar alimentación, macros, peso y actividad; visualizar tendencias; y analizar fotografías de comidas con confirmación humana. La IA detecta, la persona confirma y el motor nutricional calcula.
 
 ## Arquitectura

@@ -19,7 +19,7 @@ export async function getAppData(userId: string): Promise<AppData> {
     db.nutritionGoal.findMany({ where: { userId }, orderBy: { validFrom: "desc" } }),
   ]);
   const timezone = user.profile?.timezone || process.env.APP_TIMEZONE || "America/Argentina/San_Juan";
-  const profile = { name: user.name || "Andrés", age: user.profile?.birthDate ? Math.floor((Date.now() - user.profile.birthDate.getTime()) / 31557600000) : 29, height: user.profile?.heightCm || 178, timezone, calorieGoal: goal?.calories || 2400, proteinGoal: goal?.protein || 180, fatGoal: goal?.fat || 75, carbGoal: goal?.carbs || carbsFromRemainingCalories(goal?.calories || 2400, goal?.protein || 180, goal?.fat || 75) };
+  const profile = { name: user.name || "Andrés", age: user.profile?.birthDate ? Math.floor((Date.now() - user.profile.birthDate.getTime()) / 31557600000) : 29, height: user.profile?.heightCm ?? null, timezone, calorieGoal: goal?.calories || 2400, proteinGoal: goal?.protein || 180, fatGoal: goal?.fat || 75, carbGoal: goal?.carbs || carbsFromRemainingCalories(goal?.calories || 2400, goal?.protein || 180, goal?.fat || 75) };
   return {
     profile,
     meals: meals.flatMap((meal) => meal.items.map((item) => ({ id: item.id, mealId: meal.id, timestamp: meal.eatenAt.toISOString(), notes: meal.notes ?? "", date: dateKeyInTimeZone(meal.eatenAt, timezone), category: mealLabels[meal.category], name: item.name, quantity: item.quantity, unit: item.unit, calories: item.calories, protein: item.protein, carbs: item.carbs, fat: item.fat, source: item.source.toLowerCase() as AppData["meals"][number]["source"], estimated: item.estimated }))),

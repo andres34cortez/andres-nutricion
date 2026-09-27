@@ -99,6 +99,29 @@ try {
   await expect(page.getByRole("heading", { name: "Hoy", exact: true })).toBeVisible();
   assert.equal(new URL(page.url()).pathname, "/", "Fixture should login without onboarding redirect");
 
+  await page.getByRole("button", { name: "Perfil", exact: true }).click();
+  await expect(page.getByLabel("Altura (cm)", { exact: true })).toHaveValue("178");
+  await page.getByLabel("Altura (cm)", { exact: true }).fill("181.5");
+  const profileResponsePromise = page.waitForResponse((response) =>
+    new URL(response.url()).pathname === "/api/profile" && response.request().method() === "PUT",
+  );
+  await page.getByRole("button", { name: "Guardar cambios", exact: true }).click();
+  assert.equal((await profileResponsePromise).status(), 200, "Profile height update must reach the API");
+  await expect(page.getByRole("status").filter({ hasText: "Perfil guardado." })).toBeVisible();
+  await page.reload();
+  await page.getByRole("button", { name: "Perfil", exact: true }).click();
+  await expect(page.getByLabel("Altura (cm)", { exact: true })).toHaveValue("181.5");
+  assert.equal(
+    (await db.profile.findUniqueOrThrow({ where: { userId: fixture.id } })).heightCm,
+    181.5,
+    "Height entered through the mobile profile must persist in Postgres",
+  );
+  const profileScreenshot = join(screenshotDirectory, "mobile-profile.png");
+  await page.screenshot({ path: profileScreenshot, fullPage: true });
+  console.log(`Screenshot: ${profileScreenshot}`);
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Hoy", exact: true })).toBeVisible();
+
   const mealName = "Arroz prueba móvil";
   let editor = await openEditor("Agregar comida manual");
   await editor.getByLabel(/^Comida/).selectOption("Cena");
@@ -189,7 +212,7 @@ try {
   assert.equal(await db.activity.count({ where: { userId: fixture.id } }), 0);
   assert.deepEqual(browserErrors, [], "Browser must not report uncaught application errors");
   assert.equal(recordRequests.length, 9, "Three complete create/edit/delete flows must reach the real API");
-  console.log(`PASS: real mobile UI login, meal/weight/activity create-edit-reload-delete, proportional macros, Argentina time, Postgres persistence and no horizontal overflow. API evidence: ${recordRequests.join(", ")}.`);
+  console.log(`PASS: real mobile UI login, profile decimal height edit-save-reload with Postgres persistence, meal/weight/activity create-edit-reload-delete, proportional macros, Argentina time and no horizontal overflow. API evidence: ${recordRequests.join(", ")}.`);
 } catch (error) {
   if (page && !page.isClosed()) {
     const failureScreenshot = join(screenshotDirectory, "failure.png");

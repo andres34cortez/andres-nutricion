@@ -85,6 +85,7 @@ try {
   const other = await login(created[1].email);
   const anonymous = makeRequest();
   assert.equal((await request("/")).location, "/onboarding");
+  assert.equal((await appData(request)).profile.height, null, "A new user must not inherit a fabricated height");
 
   const answers = {
     name: "Prueba", age: 30, height: 178, weight: 80, goal: "Mantener peso",
@@ -120,6 +121,20 @@ try {
   const initial = await appData(request);
   assert.equal(initial.weights.length, 1);
   assert.equal(initial.profile.name, "Prueba");
+  assert.equal(initial.profile.height, 178, "Onboarding height must be returned by the data API");
+  assert.equal(
+    (await db.profile.findUniqueOrThrow({ where: { userId: created[0].id } })).heightCm,
+    178,
+    "Onboarding height must persist in Postgres in centimeters",
+  );
+  await db.profile.update({ where: { userId: created[0].id }, data: { heightCm: null } });
+  assert.equal((await appData(request)).profile.height, null, "Missing height must remain explicitly missing");
+  assert.equal(
+    (await request("/")).location,
+    "/onboarding",
+    "A completed questionnaire without height must request the missing measurement",
+  );
+  await db.profile.update({ where: { userId: created[0].id }, data: { heightCm: 178 } });
   const initialWeight = initial.weights[0];
 
   const { id: mealId } = await expectStatus(request, "/api/records", "POST", meal, 201);
@@ -219,8 +234,23 @@ try {
   for (const collection of ["meals", "weights", "activities"]) {
     assert.deepEqual(afterRepeat[collection], beforeRepeat[collection], `Repeating onboarding must preserve ${collection}`);
   }
-  await expectStatus(request, "/api/profile", "PUT", { ...initial.profile, age: 32 }, 200);
-  assert.equal((await appData(request)).profile.age, 32);
+  const editedProfile = { ...initial.profile, age: 32, height: 181.5 };
+  await expectStatus(request, "/api/profile", "PUT", editedProfile, 200);
+  const savedProfile = (await appData(request)).profile;
+  assert.equal(savedProfile.age, 32);
+  assert.equal(savedProfile.height, 181.5, "Profile edits must preserve decimal centimeters");
+  const storedProfile = await db.profile.findUniqueOrThrow({ where: { userId: created[0].id } });
+  assert.equal(storedProfile.heightCm, 181.5, "Edited height must persist in Postgres");
+  for (const height of [99.9, 250.1]) {
+    await expectStatus(request, "/api/profile", "PUT", { ...editedProfile, height }, 400);
+    await expectStatus(request, "/api/onboarding", "PUT", { ...answers, height }, 400);
+    assert.deepEqual(
+      await db.profile.findUniqueOrThrow({ where: { userId: created[0].id } }),
+      storedProfile,
+      "Out-of-range height must not change the saved profile",
+    );
+    assert.equal((await appData(request)).profile.height, 181.5);
+  }
 
   for (const [kind, id] of [["meal", mealId], ["weight", weightId], ["activity", activityId]]) {
     await expectStatus(request, "/api/records", "DELETE", { kind, id }, 204);
@@ -235,7 +265,7 @@ try {
   await expectStatus(request, "/api/records", "POST", { ...weight, weightKg: 301 }, 400);
   await expectStatus(request, "/api/records", "POST", { ...activity, timestamp: "2026-09-27" }, 400);
 
-  console.log("PASS: onboarding and age persistence; meal, weight and activity CRUD; Argentina day/month/year boundaries; invalid edits preserve data; anonymous 401; ownership isolation; repeat questionnaire preserves history.");
+  console.log("PASS: onboarding, age and decimal height persistence; out-of-range height preserves profile; meal, weight and activity CRUD; Argentina day/month/year boundaries; invalid edits preserve data; anonymous 401; ownership isolation; repeat questionnaire preserves history.");
 } finally {
   // Only these exact, randomly generated fixture IDs are eligible for cleanup.
   const cleanup = await Promise.allSettled(created.map((user) => db.user.delete({ where: { id: user.id } })));

@@ -11,7 +11,7 @@ export default async function HomePage() {
     const session = await auth();
     if (!session) redirect("/sign-in");
     const profile = await db.profile.findUnique({ where: { userId: session.user.id } });
-    if (!profile?.onboardingCompletedAt) redirect("/onboarding");
+    if (!profile?.onboardingCompletedAt || profile.heightCm == null) redirect("/onboarding");
     initialData = await getAppData(session.user.id);
     cloud = true;
   }
