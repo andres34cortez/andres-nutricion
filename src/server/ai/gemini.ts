@@ -1,5 +1,6 @@
 import "server-only";
 import { GoogleGenAI } from "@google/genai";
+import { z } from "zod";
 import { detectedMealSchema, type DetectedMeal } from "@/lib/validation";
 import type { AIProvider } from "./provider";
 
@@ -7,9 +8,9 @@ const prompt = `Analizá esta foto de comida. Detectá ingredientes por separado
 
 export class GeminiAIProvider implements AIProvider {
   private client: GoogleGenAI; private model: string;
-  constructor() { const key = process.env.GEMINI_API_KEY; if (!key) throw new Error("GEMINI_API_KEY_MISSING"); this.client = new GoogleGenAI({ apiKey: key }); this.model = process.env.GEMINI_MODEL || "gemini-2.5-flash"; }
+  constructor() { const key = process.env.GEMINI_API_KEY; if (!key) throw new Error("GEMINI_API_KEY_MISSING"); this.client = new GoogleGenAI({ apiKey: key }); this.model = process.env.GEMINI_MODEL || "gemini-3.8-flash"; }
   async detectFood(image: { bytes: Uint8Array; mimeType: string }): Promise<DetectedMeal> {
-    const response = await this.client.models.generateContent({ model: this.model, contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType: image.mimeType, data: Buffer.from(image.bytes).toString("base64") } }] }], config: { responseMimeType: "application/json" } });
+    const response = await this.client.models.generateContent({ model: this.model, contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType: image.mimeType, data: Buffer.from(image.bytes).toString("base64") } }] }], config: { responseMimeType: "application/json", responseJsonSchema: z.toJSONSchema(detectedMealSchema) } });
     if (!response.text) throw new Error("AI_EMPTY_RESPONSE");
     return detectedMealSchema.parse(JSON.parse(response.text));
   }

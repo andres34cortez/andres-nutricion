@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: nutricion-andres-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nutricion_andres
+      POSTGRES_USER: nutricion
+      POSTGRES_PASSWORD: nutricion_dev
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - nutricion_andres_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nutricion -d nutricion_andres"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  nutricion_andres_postgres:

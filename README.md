@@ -22,11 +22,12 @@ La interfaz guarda datos en el dispositivo para que el modo local sea inmediatam
 
 - Node.js 22+
 - pnpm 10+
-- PostgreSQL
+- PostgreSQL o Docker Desktop
 
 ```bash
 pnpm install
 cp .env.example .env.local
+docker compose up -d postgres
 pnpm db:generate
 pnpm db:migrate
 pnpm db:seed
@@ -44,7 +45,7 @@ Consulte `.env.example`. Son obligatorias en producción:
 - `AUTH_SECRET`: secreto aleatorio (`openssl rand -base64 32`).
 - `AI_PROVIDER`: actualmente `gemini`.
 - `GEMINI_API_KEY`: solo servidor.
-- `GEMINI_MODEL`: por defecto `gemini-2.5-flash`.
+- `GEMINI_MODEL`: por defecto `gemini-3.8-flash`.
 - `APP_TIMEZONE`: por defecto `America/Argentina/San_Juan`.
 - `APP_DEMO_MODE`: `true` permite explorar datos locales; use `false` en producción para exigir inicio de sesión.
 
@@ -61,6 +62,14 @@ Nunca use `NEXT_PUBLIC_GEMINI_API_KEY`.
 El endpoint acepta JPEG, PNG, WebP o HEIC de hasta 8 MB. La imagen se envía a Gemini en memoria, la respuesta se marca `no-store` y la imagen nunca se persiste en base de datos, disco, logs ni historial. Solo se guardan fecha, hora, categoría y valores nutricionales confirmados. El resultado JSON se valida con Zod. La app exige revisión antes de guardar y el registro manual sigue disponible ante cualquier falla.
 
 ## Base de datos y Prisma
+
+Para desarrollo local, el repositorio incluye PostgreSQL 16 mediante Docker en el puerto `5433`, evitando conflictos con instalaciones nativas:
+
+```bash
+docker compose up -d postgres
+```
+
+Los datos quedan en el volumen `nutricion_andres_postgres`. Luego prepare el esquema y los datos iniciales:
 
 ```bash
 pnpm db:generate
