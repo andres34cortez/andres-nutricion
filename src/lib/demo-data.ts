@@ -5,7 +5,7 @@ const meal = (id: string, date: string, category: MealEntry["category"], name: s
 
 export function createDemoData(): AppData {
   return {
-    profile: { name: "Andrés", age: 29, height: 178, timezone: "America/Argentina/San_Juan", calorieGoal: 2400, proteinGoal: 180, fatGoal: 75, carbGoal: 251, deletePhotos: true },
+    profile: { name: "Andrés", age: 29, height: 178, timezone: "America/Argentina/San_Juan", calorieGoal: 2400, proteinGoal: 180, fatGoal: 75, carbGoal: 251 },
     meals: [
       meal("m1", iso(), "Desayuno", "Avena con whey y banana", 512, 38, 68, 10), meal("m2", iso(), "Almuerzo", "Pollo, arroz y ensalada", 647, 68, 58, 15),
       meal("m3", iso(-1), "Desayuno", "Huevos con tostadas", 430, 29, 41, 17), meal("m4", iso(-1), "Almuerzo", "Carne magra con papas", 720, 59, 73, 22), meal("m5", iso(-1), "Cena", "Pancakes proteicos", 610, 48, 72, 14),

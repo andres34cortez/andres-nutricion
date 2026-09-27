@@ -47,6 +47,7 @@
 .bar.amber [data-slot="progress-indicator"] { background: #e2a23b; }
 .bar.coral [data-slot="progress-indicator"] { background: #e6796f; }
 .bar-light [data-slot="progress-indicator"] { background: var(--lime); }
+.privacy-rule{display:flex;flex-direction:column;gap:4px;background:#eef7f1;border:1px solid #d8e8de;border-radius:15px;padding:14px;margin-bottom:18px}.privacy-rule strong{font-size:12px;color:#164f3d}.privacy-rule small{font-size:10px;line-height:1.45;color:#587066}
 
 @media (prefers-color-scheme: dark) {
   :root { --muted: #93a79c; --primary: #c8ed68; --primary-foreground: #173b2e; }

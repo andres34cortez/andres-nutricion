@@ -58,7 +58,7 @@ Nunca use `NEXT_PUBLIC_GEMINI_API_KEY`.
 4. Agregar `GEMINI_API_KEY=...`, `AI_PROVIDER=gemini` y, opcionalmente, `GEMINI_MODEL=...`.
 5. Reiniciar la aplicación.
 
-El endpoint acepta JPEG, PNG, WebP o HEIC de hasta 8 MB. La imagen se envía al modelo en memoria y no se almacena. El resultado JSON se valida con Zod. La app exige revisión antes de guardar y el registro manual sigue disponible ante cualquier falla.
+El endpoint acepta JPEG, PNG, WebP o HEIC de hasta 8 MB. La imagen se envía a Gemini en memoria, la respuesta se marca `no-store` y la imagen nunca se persiste en base de datos, disco, logs ni historial. Solo se guardan fecha, hora, categoría y valores nutricionales confirmados. El resultado JSON se valida con Zod. La app exige revisión antes de guardar y el registro manual sigue disponible ante cualquier falla.
 
 ## Base de datos y Prisma
 

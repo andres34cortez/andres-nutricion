@@ -7,6 +7,6 @@ export async function POST(request: Request) {
   const form = await request.formData(); const file = form.get("image");
   if (!(file instanceof File)) return Response.json({ error: "Falta la imagen" }, { status: 400 });
   if (!allowed.has(file.type) || file.size > max) return Response.json({ error: "Formato inválido o archivo mayor a 8 MB" }, { status: 415 });
-  try { const result = await getAIProvider().detectFood({ bytes: new Uint8Array(await file.arrayBuffer()), mimeType: file.type }); return Response.json(result); }
+  try { const result = await getAIProvider().detectFood({ bytes: new Uint8Array(await file.arrayBuffer()), mimeType: file.type }); return Response.json(result, { headers: { "Cache-Control": "no-store, private" } }); }
   catch (error) { const code = error instanceof Error ? error.message : "AI_ERROR"; console.error("Food analysis failed", { code, userId: session.user.id }); return Response.json({ error: code === "GEMINI_API_KEY_MISSING" ? "El análisis por foto no está configurado." : "No pudimos analizar la imagen. Podés reintentar o registrar manualmente." }, { status: 503 }); }
 }
