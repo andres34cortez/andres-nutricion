@@ -1,5 +1,21 @@
-import { z } from "zod";
 import { auth } from "@/auth";
 import { db } from "@/server/db";
-const schema=z.object({name:z.string().min(1).max(80),age:z.number().int().min(14).max(120),height:z.number().min(100).max(250),timezone:z.string().min(3).max(80),calorieGoal:z.number().int().min(1000).max(10000),proteinGoal:z.number().min(0).max(1000),fatGoal:z.number().min(0).max(500),carbGoal:z.number().min(0).max(1500)});
-export async function PUT(request:Request){const session=await auth();if(!session?.user.id)return Response.json({error:"No autorizado"},{status:401});const parsed=schema.safeParse(await request.json());if(!parsed.success)return Response.json({error:"Perfil inválido"},{status:400});const p=parsed.data;const now=new Date();await db.$transaction(async tx=>{await tx.user.update({where:{id:session.user.id},data:{name:p.name}});await tx.profile.upsert({where:{userId:session.user.id},update:{heightCm:p.height,timezone:p.timezone,deletePhotosAfterAnalysis:true},create:{userId:session.user.id,heightCm:p.height,timezone:p.timezone,deletePhotosAfterAnalysis:true}});const active=await tx.nutritionGoal.findFirst({where:{userId:session.user.id,validUntil:null},orderBy:{validFrom:"desc"}});if(!active||active.calories!==p.calorieGoal||active.protein!==p.proteinGoal||active.fat!==p.fatGoal||active.carbs!==p.carbGoal){if(active)await tx.nutritionGoal.update({where:{id:active.id},data:{validUntil:new Date(now.getTime()-1)}});await tx.nutritionGoal.create({data:{userId:session.user.id,calories:p.calorieGoal,protein:p.proteinGoal,fat:p.fatGoal,carbs:p.carbGoal,validFrom:now}})}});return Response.json({ok:true})}
+import { questionnaireSchema } from "@/lib/questionnaire";
+import { saveGoal } from "@/server/goals";
+const schema = questionnaireSchema.pick({ name:true, age:true, height:true, timezone:true, calorieGoal:true, proteinGoal:true, carbGoal:true, fatGoal:true });
+export async function PUT(request:Request) {
+  const session=await auth(); if(!session?.user.id)return Response.json({error:"No autorizado"},{status:401});
+  const parsed=schema.safeParse(await request.json().catch(()=>null)); if(!parsed.success)return Response.json({error:"Revisá el perfil, la zona horaria y los objetivos."},{status:400});
+  const p=parsed.data; const userId=session.user.id;
+  await db.$transaction(async tx=>{
+    await tx.user.update({where:{id:userId},data:{name:p.name}});
+    const current=await tx.profile.findUnique({where:{userId}});
+    const birthDate=current?.birthDate??new Date();
+    const age=Math.floor((Date.now()-birthDate.getTime())/31557600000);
+    if(age!==p.age) {birthDate.setTime(Date.now());birthDate.setUTCFullYear(birthDate.getUTCFullYear()-p.age);}
+    const fields={heightCm:p.height,birthDate,timezone:p.timezone,deletePhotosAfterAnalysis:true};
+    await tx.profile.upsert({where:{userId},update:fields,create:{userId,...fields}});
+    await saveGoal(tx,userId,p);
+  });
+  return Response.json({ok:true});
+}

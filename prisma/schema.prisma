@@ -104,6 +104,8 @@ model Profile {
   calorieTolerance Int @default(150)
   deletePhotosAfterAnalysis Boolean @default(true)
   darkMode Boolean @default(false)
+  onboardingCompletedAt DateTime?
+  questionnaire Json?
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 

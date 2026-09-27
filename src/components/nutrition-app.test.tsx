@@ -107,6 +107,10 @@ describe("NutritionApp", () => {
       expect(stored).not.toContain("data:image");
       expect(stored).not.toContain("blob:");
     });
+    expect(screen.getByText("Registro guardado.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Agregar registro" }));
+    expect(screen.queryByText("Registro guardado.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Registrar peso" })).toBeVisible();
   });
 
   it("keeps photo analysis disabled until a file is selected and explains disposal", async () => {
@@ -117,7 +121,25 @@ describe("NutritionApp", () => {
     await user.click(screen.getByRole("button", { name: /Analizar comida con foto/ }));
 
     expect(screen.getByRole("button", { name: "Analizar y revisar" })).toBeDisabled();
-    expect(screen.getByText(/se descarta inmediatamente después/i)).toBeInTheDocument();
-    expect(screen.getByText(/Nunca se guarda en la aplicación/i)).toBeInTheDocument();
+    expect(screen.getByText(/La aplicación no guarda la imagen/i)).toBeInTheDocument();
+    expect(screen.getByText(/solo los datos que confirmes/i)).toBeInTheDocument();
+  });
+
+  it("does not offer saving again after a successful write followed by a failed refresh", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, status: 201, json: async () => ({ id: "saved-weight" }) })
+      .mockResolvedValueOnce({ ok: false, status: 503, json: async () => ({ error: "No disponible" }) })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => emptyData });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<NutritionApp initialData={emptyData} cloud />);
+    await user.click(screen.getByRole("button", { name: "Agregar registro" }));
+    await user.click(screen.getByRole("button", { name: "Registrar peso" }));
+    await user.click(screen.getByRole("button", { name: "Guardar peso" }));
+    expect(await screen.findByText(/Registro guardado\. No pudimos actualizar/)).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Reintentar actualización" }));
+    expect(await screen.findByText("Datos actualizados.")).toBeInTheDocument();
+    expect(fetchMock.mock.calls.filter(([, options]) => options.method === "POST")).toHaveLength(1);
   });
 });

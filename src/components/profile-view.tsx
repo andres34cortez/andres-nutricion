@@ -1,0 +1,9 @@
+"use client";
+import { useState } from "react";
+import type { AppData } from "@/lib/app-types";
+import { AccountControls } from "./account-controls";
+export function ProfileView({ data, cloud, googleEnabled, onSave }: { data: AppData; cloud: boolean; googleEnabled: boolean; onSave: (profile: AppData["profile"]) => Promise<void> }) {
+  const [profile,setProfile]=useState(data.profile); const [busy,setBusy]=useState(false); const [error,setError]=useState("");
+  return <><form className="settings" onSubmit={async e=>{e.preventDefault();setBusy(true);setError("");try{await onSave(profile);}catch(e){setError(e instanceof Error?e.message:"No se pudo guardar.");}finally{setBusy(false);}}}><h2>Datos y objetivos</h2>{(Object.keys(labels) as (keyof typeof labels)[]).map(k=><label className="field" key={k}><span>{labels[k]}</span><input required type={typeof profile[k]==="number"?"number":"text"} step="any" value={profile[k]} onChange={e=>setProfile({...profile,[k]:typeof profile[k]==="number"?Number(e.target.value):e.target.value})}/></label>)}<div className="privacy-rule"><strong>Las fotos nunca se guardan</strong><p>Solo conservamos los datos nutricionales que confirmás.</p></div>{error&&<p role="alert">{error}</p>}<button disabled={busy} className="primary-button">{busy?"Guardando…":"Guardar cambios"}</button></form>{cloud&&<AccountControls googleEnabled={googleEnabled}/>}<section className="section"><h2>Mis datos</h2><button onClick={()=>{const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="nutricion-andres-datos.json";a.click();URL.revokeObjectURL(url);}}>Exportar mis registros</button></section></>;
+}
+const labels = { name:"Nombre",age:"Edad",height:"Altura (cm)",timezone:"Zona horaria",calorieGoal:"Calorías",proteinGoal:"Proteína (g)",carbGoal:"Carbohidratos (g)",fatGoal:"Grasas (g)" };

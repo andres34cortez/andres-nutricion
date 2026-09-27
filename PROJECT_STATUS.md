@@ -2,6 +2,25 @@
 
 Checkpoint actualizado el 27 de septiembre de 2026.
 
+## Actualización de registros y fotos — 27/09, segunda etapa
+
+Este apartado reemplaza los conteos y pendientes anteriores cuando difieren. El plan vigente está en `EXECUTION_PLAN.md`.
+
+- Cuestionario inicial persistente y repetible desde Perfil, sin borrar registros existentes.
+- CRUD de comidas, peso y actividad con validación y aislamiento por usuario; zona horaria consistente, incluyendo fechas en límites de día, mes y año.
+- Editor con recálculo proporcional de cantidades desde una base estable, valores faltantes vacíos y confirmación explícita de nutrición completamente cero. Cambiar unidad exige volver a ingresar valores.
+- Escáner permite corregir/agregar/excluir ingredientes, cantidades, unidades y preguntas; usa catálogo compatible o macros manuales, sin inventar conversiones. La foto no se persiste y los errores crudos de IA no se registran.
+- Errores de guardado conservan el formulario. Si el servidor confirma la escritura pero falla la actualización de pantalla, se reintenta solo la lectura. Aún falta idempotencia para respuestas de escritura inciertas por corte de red.
+- Aviso de conexión visible únicamente en rojo sin conexión; caché del service worker limitada a recursos públicos.
+- Google preparado en código pero sin credenciales OAuth y sin validación real. Catálogo/recetas e informes avanzados implementados parcialmente y pendientes de cierre según plan.
+- Verificación actual: 41 tests, TypeScript, lint, build de producción, smoke HTTP e integración real de registros aprobados. Pruebas nuevas del escáner con mocks; no afirmar una nueva prueba real de Gemini.
+- `pnpm test:browser` aprobado en Chrome aislado, viewport 390×844: login UI, CRUD de los tres tipos, recarga, proporciones, hora local y confirmación en PostgreSQL; 9 operaciones HTTP reales, sin errores de aplicación ni desborde horizontal. Se corrigió un aviso persistente que interceptaba clics del menú. Todos los fixtures fueron eliminados por sus IDs exactos.
+- Pendientes: prueba en iPhone real, publicación, Google real, cierre de informes y catálogo; entrenamiento PDF al final.
+
+## Checkpoint anterior — referencia histórica
+
+Lo que sigue documenta la etapa previa. Para el estado actual prevalecen la actualización superior y `EXECUTION_PLAN.md`.
+
 ## Repositorio
 
 - Rama: `main`

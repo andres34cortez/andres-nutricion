@@ -12,7 +12,7 @@ Aplicación mobile-first/PWA para registrar alimentación, macros, peso y activi
 - `AIProvider` desacoplado con implementación inicial `GeminiAIProvider`. La clave nunca llega al navegador.
 - PWA con manifest, icono, safe areas de iOS y service worker.
 
-La interfaz guarda datos en el dispositivo para que el modo local sea inmediatamente utilizable. Los endpoints protegidos y el esquema PostgreSQL quedan preparados para sincronización multiusuario; antes de un uso remoto, configure base de datos y autenticación.
+Con `APP_DEMO_MODE=false`, la interfaz exige sesión y persiste los datos por usuario en PostgreSQL. El almacenamiento local del navegador se usa solo en modo demostración. Antes de un uso remoto hay que configurar hosting, base de datos y autenticación de producción.
 
 ## Modelo de datos
 
@@ -85,10 +85,24 @@ Para producción, ejecute `pnpm prisma migrate deploy` durante el despliegue. Nu
 pnpm lint
 pnpm typecheck
 pnpm test
+pnpm test:records
+pnpm test:browser
 pnpm build
 ```
 
 Los tests cubren porciones, recetas, totales, promedios con cobertura, tendencia de peso, media móvil, objetivo histórico, límites de timezone y validación de IA.
+
+`test:records` y `test:browser` requieren el servidor local en `http://localhost:3000`, PostgreSQL y las variables locales en `.env`. Crean cuentas temporales con identificadores aleatorios y las eliminan al finalizar; no usan los datos del usuario admin. `test:browser` usa Chrome instalado en un contexto aislado de 390 × 844, sin acceder a las sesiones personales del navegador. No representa una prueba en iPhone real. Las pruebas del escáner en Vitest simulan Gemini, sin enviar fotografías ni consumir su API.
+
+### Revisión de comidas y fotos
+
+- Corregí los ingredientes detectados y confirmá cantidad y unidad.
+- Elegí una referencia de tu catálogo con la misma unidad, o completá los cuatro valores nutricionales manualmente. Un dato faltante no equivale a cero.
+- Al cambiar cantidad, los macros se recalculan proporcionalmente desde una base estable. Si cambiás unidad, se vacían para evitar conversiones incorrectas.
+- Todos los valores en cero requieren confirmación explícita (por ejemplo, agua); también se valida en el endpoint de registros.
+- La aplicación no almacena fotos. Solo persiste los datos confirmados. Una respuesta incierta del servidor no garantiza que no haya guardado: revisá el historial antes de repetir una escritura.
+
+El avance y las verificaciones pendientes están en `EXECUTION_PLAN.md`. Google OAuth aún requiere configuración y comprobación real; el PDF y el modo entrenamiento siguen pendientes.
 
 ## Despliegue en Vercel
 

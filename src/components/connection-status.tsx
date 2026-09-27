@@ -14,8 +14,8 @@ export function ConnectionStatus() {
       return;
     }
     try {
-      const response = await fetch("/manifest.webmanifest", { cache: "no-store" });
-      setStatus(response.ok ? "online" : "offline");
+      const response = await fetch("/api/health", { cache: "no-store", signal: AbortSignal.timeout(5000) });
+      setStatus(response.ok && navigator.onLine ? "online" : "offline");
     } catch {
       setStatus("offline");
     }
@@ -34,6 +34,7 @@ export function ConnectionStatus() {
     };
   }, [checkConnection]);
 
-  const label = status === "online" ? "Conectado" : status === "offline" ? "Sin conexión" : "Comprobando";
-  return <Badge role="status" aria-live="polite" className={`connection-status ${status}`}><span aria-hidden="true" className="connection-led" />{label}</Badge>;
+  if (status !== "offline") return null;
+
+  return <Badge role="status" aria-live="polite" className="connection-status offline"><span aria-hidden="true" className="connection-led" />Sin conexión</Badge>;
 }

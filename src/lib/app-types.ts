@@ -1,6 +1,9 @@
 export type MealCategory = "Desayuno" | "Almuerzo" | "Merienda" | "Cena" | "Otros";
-export type MealEntry = { id: string; date: string; category: MealCategory; name: string; quantity: number; unit: string; calories: number; protein: number; carbs: number; fat: number; source: "manual" | "ai_photo" | "recipe" | "favorite"; estimated?: boolean };
-export type WeightEntry = { id: string; date: string; weightKg: number };
-export type ActivityEntry = { id: string; date: string; type: "Gym" | "CrossFit" | "Caminata" | "Otro"; duration: number; detail?: string };
+export type MealEntry = { id: string; mealId?: string; timestamp?: string; notes?: string; date: string; category: MealCategory; name: string; quantity: number; unit: string; calories: number; protein: number; carbs: number; fat: number; source: "manual" | "ai_photo" | "recipe" | "favorite"; estimated?: boolean };
+export type WeightEntry = { id: string; date: string; timestamp?: string; weightKg: number };
+export type ActivityEntry = { id: string; date: string; timestamp?: string; type: "Gym" | "CrossFit" | "Caminata" | "Otro"; duration: number; detail?: string; distanceKm?: number; steps?: number };
 export type Profile = { name: string; age: number; height: number; timezone: string; calorieGoal: number; proteinGoal: number; fatGoal: number; carbGoal: number };
-export type AppData = { meals: MealEntry[]; weights: WeightEntry[]; activities: ActivityEntry[]; profile: Profile };
+export type Food = { id: string; name: string; servingAmount: number; servingUnit: string; calories: number; protein: number; carbs: number; fat: number; favorite: boolean };
+export type Recipe = { id: string; name: string; description?: string | null; servings: number; ingredients: { foodId: string; quantity: number; unit: string }[] };
+export type Goal = { validFrom: string; validUntil: string | null; calories: number; protein: number; carbs: number | null; fat: number };
+export type AppData = { meals: MealEntry[]; weights: WeightEntry[]; activities: ActivityEntry[]; profile: Profile; foods?: Food[]; recipes?: Recipe[]; goals?: Goal[] };

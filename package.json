@@ -12,6 +12,8 @@
     "test:watch": "vitest",
     "test:smoke": "node scripts/smoke-test.mjs",
     "test:ai": "node --env-file=.env scripts/verify-ai-flow.mjs",
+    "test:records": "node --env-file=.env scripts/verify-records.mjs",
+    "test:browser": "node --env-file=.env scripts/verify-browser.mjs",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
@@ -39,6 +41,7 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
