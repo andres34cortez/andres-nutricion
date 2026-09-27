@@ -11,7 +11,17 @@ async function save(request: Request, editing: boolean) {
   const parsed = recordSchema.safeParse(raw);
   if (!parsed.success || (editing && typeof raw?.id !== "string")) return Response.json({ error: "Revisá los campos del registro." }, { status: 400 });
   const p = parsed.data; const userId = session.user.id;
-  const id = editing ? raw.id as string : undefined;
+  const id = typeof raw?.id === "string" ? (raw.id as string) : undefined;
+
+  if (!editing && id) {
+    const existing = p.kind === "meal"
+      ? await db.meal.findFirst({ where: { id, userId } })
+      : p.kind === "weight"
+      ? await db.weightEntry.findFirst({ where: { id, userId } })
+      : await db.activity.findFirst({ where: { id, userId } });
+    if (existing) return Response.json({ id: existing.id }, { status: 200 });
+  }
+
   const result = await db.$transaction(async (tx) => {
     if (editing) {
       const where = { id, userId };
@@ -20,15 +30,15 @@ async function save(request: Request, editing: boolean) {
     }
     if (p.kind === "meal") {
       const data = { category: categories[p.category], eatenAt: new Date(p.timestamp), notes: p.notes, items: { create: p.items.map((item) => ({ name: item.name, quantity: item.quantity, unit: item.unit, calories: item.calories, protein: item.protein, carbs: item.carbs, fat: item.fat, estimated: item.estimated, source: item.source.toUpperCase() as MealSource })) } };
-      if (id) { await tx.mealItem.deleteMany({ where: { mealId: id } }); return tx.meal.update({ where: { id }, data }); }
-      return tx.meal.create({ data: { ...data, userId } });
+      if (editing && id) { await tx.mealItem.deleteMany({ where: { mealId: id } }); return tx.meal.update({ where: { id }, data }); }
+      return tx.meal.create({ data: { ...data, id, userId } });
     }
     if (p.kind === "weight") {
       const data = { weightKg: p.weightKg, recordedAt: new Date(p.timestamp) };
-      return id ? tx.weightEntry.update({ where: { id }, data }) : tx.weightEntry.create({ data: { ...data, userId } });
+      return editing && id ? tx.weightEntry.update({ where: { id }, data }) : tx.weightEntry.create({ data: { ...data, id, userId } });
     }
     const data = { type: types[p.type], occurredAt: new Date(p.timestamp), durationMinutes: p.duration, notes: p.detail, distanceKm: p.distanceKm ?? null, steps: p.steps ?? null };
-    return id ? tx.activity.update({ where: { id }, data }) : tx.activity.create({ data: { ...data, userId } });
+    return editing && id ? tx.activity.update({ where: { id }, data }) : tx.activity.create({ data: { ...data, id, userId } });
   });
   return result ? Response.json({ id: result.id }, { status: editing ? 200 : 201 }) : Response.json({ error: "Registro no encontrado" }, { status: 404 });
 }

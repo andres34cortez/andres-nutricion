@@ -25,7 +25,7 @@ export function weightTrend(points: WeightPoint[]) {
 
 export type HistoricalGoal = { validFrom: Date; validUntil: Date | null; calories: number; protein: number; fat: number };
 export function goalForDate(goals: HistoricalGoal[], date: Date) {
-  return goals.find((goal) => goal.validFrom <= date && (!goal.validUntil || goal.validUntil >= date)) ?? null;
+  return [...goals].sort((a, b) => b.validFrom.getTime() - a.validFrom.getTime()).find((goal) => goal.validFrom <= date && (!goal.validUntil || goal.validUntil > date)) ?? null;
 }
 
 export function dateKeyInTimeZone(date: Date, timeZone: string) {

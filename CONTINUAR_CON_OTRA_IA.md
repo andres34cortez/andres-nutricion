@@ -83,45 +83,41 @@ Leer `AGENTS.md`: esta versión de Next.js requiere consultar las guías instala
 
 | Área | Implementado y/o verificado | Todavía pendiente |
 |---|---|---|
-| Registros | CRUD comidas/peso/actividad; validación, pertenencia, fechas locales; pruebas API + DB y navegador real | Idempotencia de servidor para reintentos tras respuesta incierta |
+| Registros | CRUD comidas/peso/actividad; validación, pertenencia, fechas locales; pruebas API + DB y navegador real; idempotencia de servidor en `/api/records` con ID de cliente | Sin bloqueo conocido en los casos probados |
 | Fotos | Detección Gemini, corregir/agregar/excluir ingredientes, cantidades/unidades, preguntas, catálogo/manual, confirmar y guardar; recálculo y datos faltantes protegidos | Probar el recorrido actualizado con fotos reales del usuario; pruebas nuevas de scanner usan mocks |
 | Cuestionario | Nuevos perfiles sin completar pasan por 4 pasos; hábitos/consumos/actividad/objetivos persistentes; repetir desde Perfil conserva historial | Revisiones generales de UX/accesibilidad antes de publicar |
 | Altura | Campo destacado en cuestionario y Perfil; centímetros; edición con decimales; persistencia; límites 100–250; sin altura inventada | Sin bloqueo conocido en los casos probados |
-| Historial/reportes | Navegación de fechas/meses, filtros móviles 7/30/90 días, cobertura, comparaciones, gráficos de calorías/peso y exportación JSON | Semanas/meses calendario reales, objetivos históricos coherentes en todas las vistas y validación E2E |
-| Catálogo/recetas | UI y API de alimentos propios/favoritos, recetas por ingredientes y porciones, agregar al diario | Validación E2E completa y revisión de unidades de datos semilla |
+| Historial/reportes | Navegación de semanas/meses calendario y 7d/30d/90d; fecha de referencia y botones anterior/hoy/siguiente; objetivos históricos vigentes en vista diaria y reportes; verificación Playwright `scripts/verify-reports.mjs` | Sin bloqueo conocido en los casos probados |
+| Catálogo/recetas | UI y API de alimentos propios/favoritos, recetas por ingredientes y porciones, agregar al diario; unidades semilla corregidas; tests unitarios y de componentes completos | Sin bloqueo conocido en los casos probados |
 | Google | Provider condicional, botón de ingreso/vinculación y cierre de sesión | Credenciales OAuth, callbacks local/producción y prueba real de vinculación sin perder datos |
 | PWA/conexión | Manifest/iconos; health sin caché; solo rojo offline; service worker limita caché a recursos públicos | Instalación y funcionamiento real en iPhone, revisión completa de privacidad/caché; no hay cola offline de escrituras |
-| Publicación | Vercel elegido, build pasa | Vincular proyecto, PostgreSQL administrado, secretos, migraciones, Google de producción y pruebas remotas |
+| Publicación | Vercel elegido, build pasa; base PostgreSQL de producción en Neon configurada, migrada (`20260927190000_onboarding`) y sembrada (`seed`) | Importar proyecto en Vercel, configurar variables de entorno y probar despliegue remoto |
 | Entrenamiento | Solo modelos `Routine` y `RoutineDay` | Importación PDF, separación por días, sesión guiada, series/repeticiones/pesos e historial. Hacer último |
 
 ## 7. Próximo trabajo recomendado
 
-1. Cerrar **historial/reportes**: permitir semana calendario y mes calendario además de ventanas móviles; comparar períodos equivalentes y mantener cobertura explícita.
-2. Corregir el resumen de `Hoy/Historial` para que al consultar una fecha pasada muestre los objetivos vigentes entonces. Actualmente el resumen usa `data.profile` (objetivos actuales), aunque los reportes ya tienen lógica histórica.
-3. Definir y probar los límites de vigencia cuando cambian objetivos el mismo día. Probar meses de distinta duración, año bisiesto, días vacíos y límites horarios.
-4. Cerrar **favoritos/recetas** con pruebas de creación/edición/eliminación y porciones que llegan correctamente al diario. Revisar las unidades antes de calcular.
-5. Implementar idempotencia de registros para evitar duplicados si el servidor guarda y se pierde la respuesta. Hoy hay bloqueo de doble clic, pero no garantía de reintento exactamente una vez.
-6. Continuar con Google y preparación de Vercel; consultar al usuario solo por credenciales o elecciones externas necesarias. Entrenamiento va después de lo anterior.
-
-No se necesita información nueva del usuario para empezar reportes y catálogo. Para OAuth, hosting/DB e iPhone sí habrá intervención externa. El PDF se pedirá cuando toque entrenamiento.
+1. Configurar **Google OAuth**: solicitar `AUTH_GOOGLE_ID` y `AUTH_GOOGLE_SECRET` al usuario cuando esté listo para probar la vinculación real.
+2. Preparación para **Vercel**: Vincular repositorio a Vercel, aprovisionar PostgreSQL administrado en la nube (ej. Neon/Supabase), configurar variables de entorno de producción y ejecutar `prisma migrate deploy`.
+3. Verificación de PWA e instalación en iPhone real (requiere dispositivo físico).
+4. **Entrenamiento desde PDF** (última etapa acordada): importación de PDF, rutinas por días, sesiones guiadas y registro de pesos/repeticiones.
 
 ## 8. Mapa del código
 
-- `src/components/nutrition-app.tsx`: pestañas, apertura de formularios, guardado/refresco, edición/borrado, vista diaria e historial.
+- `src/components/nutrition-app.tsx`: pestañas, apertura de formularios, guardado/refresco, edición/borrado, vista diaria e historial con objetivos vigentes en la fecha (`goalForDay`).
 - `src/components/record-editor.tsx`: cantidades y nutrición editable. Conserva una base para recalcular sin deriva de redondeo; protege doble envío y muestra errores sin descartar datos.
 - `src/components/food-scanner.tsx`: foto transitoria y revisión; pasa `missingNutrition` al editor para campos desconocidos vacíos.
 - `src/lib/record-validation.ts`: validación compartida. `zeroNutritionConfirmed` es confirmación transitoria; `/api/records` no la intenta escribir como columna Prisma.
-- `src/app/api/records/route.ts`: CRUD unificado; transacciones en comidas y ownership. Limpiar pasos/distancia escribe `null`, no `undefined`.
+- `src/app/api/records/route.ts`: CRUD unificado con idempotencia en `POST` usando ID de cliente; transacciones en comidas y ownership.
 - `src/server/app-data.ts` y `src/app/api/data/route.ts`: lectura completa por usuario y serialización para UI. `MealEntry.id` identifica un ingrediente y `mealId` identifica la comida agrupada.
-- `src/lib/dates.ts` y `src/lib/reports.ts`: fechas locales y utilidades históricas. `src/lib/period-summary.ts` y `src/components/reports-view.tsx`: períodos, cobertura, gráficos.
-- `src/components/library.tsx`, `/api/library`: catálogo, favoritos, recetas.
+- `src/lib/dates.ts` y `src/lib/reports.ts`: fechas locales y utilidades históricas. `src/lib/report-period.ts`, `src/lib/goal-history.ts`, `src/lib/period-summary.ts` y `src/components/reports-view.tsx`: semanas/meses calendario, navegación, cobertura y gráficos.
+- `src/components/library.tsx`, `/api/library`: catálogo, favoritos, recetas por porciones.
 - `src/components/questionnaire.tsx`, `src/lib/questionnaire.ts`, `/onboarding`, `/api/onboarding`: cuestionario. Perfil guarda campos escalares y JSON de respuestas.
 - `src/components/height-field.tsx`: altura compartida por cuestionario y Perfil. `src/components/profile-view.tsx` permite editarla y exportar datos.
 - `src/app/api/profile/route.ts` y `src/server/goals.ts`: perfil y vigencia de objetivos.
 - `src/auth.ts`, `/sign-in`, `src/components/account-controls.tsx`: autenticación y Google condicional.
 - `src/server/ai/gemini.ts` y `/api/ai/food`: detector IA sin cálculo de calorías. `/api/ai/progress` interpreta resúmenes numéricos.
 - `src/components/connection-status.tsx`, `/api/health`, `public/sw.js`: conexión y caché pública.
-- `prisma/schema.prisma` y `prisma/migrations/`: modelo y migraciones; onboarding ya migrado. Altura usa `Profile.heightCm`, no requirió nueva migración.
+- `prisma/schema.prisma` y `prisma/migrations/`: modelo y migraciones.
 
 ## 9. Verificación reproducible
 
@@ -133,11 +129,13 @@ pnpm build
 pnpm test:smoke
 pnpm test:records
 pnpm test:browser
+node --env-file=.env scripts/verify-reports.mjs
 ```
 
-- Último resultado unitario/componentes: **45 tests, 9 archivos, todos pasan**; lint, TypeScript y build de producción también, incluyendo la mejora de altura.
+- Último resultado unitario/componentes: **88 tests, 12 archivos, todos pasan**; lint, TypeScript y build de producción también.
 - `test:records`: servidor en 3000 + PostgreSQL. Crea dos cuentas temporales, verifica onboarding/perfil/altura, CRUD y fechas, rechazos sin pérdida de datos, 401/404 e aislamiento; limpia ambos usuarios por IDs exactos.
-- `test:browser`: Chrome instalado, perfil/contexto aislado de 390×844. Login por UI, editar altura y recargar, alta/edición/recarga/borrado de comidas/peso/actividad, macros proporcionales, consultas de DB y ausencia de desborde horizontal. No usa cookies ni registros del usuario. Capturas en carpeta temporal indicada por stdout.
+- `test:browser`: Chrome instalado, perfil/contexto aislado de 390×844. Login por UI, editar altura y recargar, alta/edición/recarga/borrado de comidas/peso/actividad, macros proporcionales, consultas de DB y ausencia de desborde horizontal.
+- `scripts/verify-reports.mjs`: verificación Playwright de semanas y meses calendario, año bisiesto, objetivos históricos por medianoche local, comparación con período anterior y responsive 390px sin desborde horizontal.
 - `test:smoke`: rutas públicas/PWA y rechazo de APIs privadas anónimas.
 - `test:ai` es distinto: llama **realmente** a Gemini, puede consumir cuota y usa el acceso local configurado por el script. No confundirlo con las pruebas con mocks ni ejecutarlo repetidamente sin necesidad. Hubo prueba real en una etapa anterior; no se repitió con fotos reales en este checkpoint.
 - Una vista móvil simulada en Chrome **no es un iPhone real**. La prueba de instalación/PWA en iOS sigue pendiente.

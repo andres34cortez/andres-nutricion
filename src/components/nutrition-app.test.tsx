@@ -31,6 +31,9 @@ const emptyData: AppData = {
     fatGoal: 75,
     carbGoal: 260,
   },
+  goals: [
+    { validFrom: "2020-01-01T00:00:00.000Z", validUntil: null, calories: 2400, protein: 180, fat: 75, carbs: 260 },
+  ],
 };
 
 beforeEach(() => {

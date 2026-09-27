@@ -4,6 +4,7 @@ import { Home, History, Plus, TrendingUp, UserRound, X } from "lucide-react";
 import type { AppData, MealEntry } from "@/lib/app-types";
 import type { RecordInput } from "@/lib/record-validation";
 import { createDemoData } from "@/lib/demo-data";
+import { goalForDay } from "@/lib/goal-history";
 import { dateKeyInTimeZone } from "@/lib/reports";
 import { calculateMealNutrition } from "@/lib/nutrition";
 import { api } from "@/lib/client-api";
@@ -36,6 +37,7 @@ export function NutritionApp({ initialData, cloud = false, googleEnabled = false
   const day = tab === "Hoy" ? today : selected;
   const meals = data.meals.filter(m => m.date === day);
   const total = calculateMealNutrition(meals);
+  const activeGoal = goalForDay(data.goals ?? [], day, data.profile.timezone);
   async function refresh() { if (cloud) setData(await api<AppData>("/api/data")); }
   async function refreshAfterMutation(success: string) {
     try { await refresh(); setRefreshNeeded(false); return success; }
@@ -43,7 +45,11 @@ export function NutritionApp({ initialData, cloud = false, googleEnabled = false
   }
   async function save(input: RecordInput) {
     let message = "Registro guardado.";
-    if (cloud) { await api("/api/records", editing?.id ? "PUT" : "POST", { ...input, id: editing?.id }); message = await refreshAfterMutation(message); }
+    if (cloud) {
+      const recordId = editing?.id ?? crypto.randomUUID();
+      await api("/api/records", editing?.id ? "PUT" : "POST", { ...input, id: recordId });
+      message = await refreshAfterMutation(message);
+    }
     else {
       const id = editing?.id ?? crypto.randomUUID(); const date = dateKeyInTimeZone(new Date(input.timestamp), data.profile.timezone);
       setData(old => input.kind === "meal" ? { ...old, meals: [...old.meals.filter(m => (m.mealId ?? m.id) !== id), ...input.items.map((item, i) => ({ ...item, id: `${id}-${i}`, mealId: id, date, timestamp: input.timestamp, notes: input.notes, category: input.category }))] } : input.kind === "weight" ? { ...old, weights: [...old.weights.filter(w => w.id !== id), { id, date, ...input }] } : { ...old, activities: [...old.activities.filter(a => a.id !== id), { id, date, ...input }] });
@@ -65,8 +71,17 @@ export function NutritionApp({ initialData, cloud = false, googleEnabled = false
   return <main className="app-frame"><div className="screen"><header className="screen-header"><div><p className="eyebrow">NUTRICIÓN ANDRÉS</p><h1>{tab}</h1><p className="subtle">{tab === "Hoy" ? new Intl.DateTimeFormat("es-AR", { timeZone: data.profile.timezone, dateStyle: "full" }).format(new Date()) : "Tus datos, a tu ritmo"}</p></div><span className="avatar">{data.profile.name.split(" ").map(n => n[0]).slice(0,2).join("")}</span></header>
     {(tab === "Hoy" || tab === "Historial") && <>
       {tab === "Historial" && <section className="calendar-card"><div className="month-row"><button aria-label="Mes anterior" onClick={() => moveMonth(-1)}>‹</button><label className="field"><span>Elegir fecha</span><input type="date" value={selected} onChange={e => setSelected(e.target.value)} /></label><button aria-label="Mes siguiente" onClick={() => moveMonth(1)}>›</button></div></section>}
-      <section className="hero-card"><p className="hero-label">CALORÍAS</p><p className="hero-value">{fmt.format(total.calories)} <span>/ {fmt.format(data.profile.calorieGoal)} kcal</span></p><progress aria-label="Objetivo de calorías" max={data.profile.calorieGoal} value={Math.min(total.calories, data.profile.calorieGoal)} /><p>{total.calories <= data.profile.calorieGoal ? `Te quedan aproximadamente ${fmt.format(data.profile.calorieGoal-total.calories)} kcal` : `Superaste el objetivo en ${fmt.format(total.calories-data.profile.calorieGoal)} kcal`}</p></section>
-      <div className="macro-grid">{(["protein", "carbs", "fat"] as const).map(k => <section className="macro-card" key={k}><p>{{protein:"Proteína",carbs:"Carbos",fat:"Grasas"}[k]}</p><strong>{total[k]} g</strong><small>Objetivo {k === "protein" ? data.profile.proteinGoal : k === "carbs" ? data.profile.carbGoal : data.profile.fatGoal} g</small></section>)}</div>
+      {activeGoal ? (
+        <>
+          <section className="hero-card"><p className="hero-label">CALORÍAS</p><p className="hero-value">{fmt.format(total.calories)} <span>/ {fmt.format(activeGoal.calories)} kcal</span></p><progress aria-label="Objetivo de calorías" max={activeGoal.calories} value={Math.min(total.calories, activeGoal.calories)} /><p>{total.calories <= activeGoal.calories ? `Te quedan aproximadamente ${fmt.format(activeGoal.calories-total.calories)} kcal` : `Superaste el objetivo en ${fmt.format(total.calories-activeGoal.calories)} kcal`}</p></section>
+          <div className="macro-grid">{(["protein", "carbs", "fat"] as const).map(k => <section className="macro-card" key={k}><p>{{protein:"Proteína",carbs:"Carbos",fat:"Grasas"}[k]}</p><strong>{total[k]} g</strong><small>Objetivo {k === "protein" ? activeGoal.protein : k === "carbs" ? activeGoal.carbs : activeGoal.fat} g</small></section>)}</div>
+        </>
+      ) : (
+        <>
+          <section className="hero-card"><p className="hero-label">CALORÍAS</p><p className="hero-value">{fmt.format(total.calories)} <span>kcal</span></p><p className="hero-note">Sin objetivo registrado para esta fecha</p></section>
+          <div className="macro-grid">{(["protein", "carbs", "fat"] as const).map(k => <section className="macro-card" key={k}><p>{{protein:"Proteína",carbs:"Carbos",fat:"Grasas"}[k]}</p><strong>{total[k]} g</strong><small>Sin objetivo</small></section>)}</div>
+        </>
+      )}
       <section className="section"><h2>{tab === "Hoy" ? "Registro de hoy" : day}</h2>{meals.length === 0 && <p className="empty-inline">Sin alimentación registrada. Un día vacío no se cuenta como 0 kcal.</p>}{["Desayuno","Almuerzo","Merienda","Cena","Otros"].map(category => <section className="meal-group" key={category}><div className="meal-title"><h3>{category}</h3><span>{meals.filter(m => m.category === category).reduce((s,m)=>s+m.calories,0)} kcal</span></div>{meals.filter(m=>m.category===category).map(m => <article className="meal-item" key={m.id}><div className="grow"><p className="item-name">{m.name}</p><p className="subtle">{m.quantity} {m.unit} · {m.protein} g proteína{m.timestamp ? ` · ${new Intl.DateTimeFormat("es-AR",{timeZone:data.profile.timezone,hour:"2-digit",minute:"2-digit"}).format(new Date(m.timestamp))}` : ""}</p></div><button aria-label={`Editar ${m.name}`} onClick={()=>editMeal(m)}>Editar</button><button aria-label={`Eliminar ${m.name}`} onClick={()=>void remove("meal",m.mealId??m.id)}><X size={16}/></button></article>)}</section>)}</section>
       <section className="section"><h2>Peso y actividad</h2>{data.weights.filter(w=>w.date===day).map(w=><article className="list-row" key={w.id}><strong>{w.weightKg} kg</strong><button onClick={()=>edit(w.id,{kind:"weight",timestamp:w.timestamp??`${w.date}T15:00:00Z`,weightKg:w.weightKg})}>Editar peso</button><button onClick={()=>void remove("weight",w.id)}>Eliminar peso</button></article>)}{data.activities.filter(a=>a.date===day).map(a=><article className="list-row" key={a.id}><div><strong>{a.type}</strong><p>{a.duration} min · {a.detail}</p></div><button onClick={()=>edit(a.id,{kind:"activity",timestamp:a.timestamp??`${a.date}T15:00:00Z`,type:a.type,duration:a.duration,detail:a.detail??"",distanceKm:a.distanceKm,steps:a.steps})}>Editar</button><button onClick={()=>void remove("activity",a.id)}>Eliminar</button></article>)}</section>
     </>}

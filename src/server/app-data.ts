@@ -10,7 +10,7 @@ const activityLabels: Record<ActivityType, AppData["activities"][number]["type"]
 export async function getAppData(userId: string): Promise<AppData> {
   const [user, goal, meals, weights, activities, foods, recipes, goals] = await Promise.all([
     db.user.findUniqueOrThrow({ where: { id: userId }, include: { profile: true } }),
-    db.nutritionGoal.findFirst({ where: { userId, validFrom: { lte: new Date() }, OR: [{ validUntil: null }, { validUntil: { gte: new Date() } }] }, orderBy: { validFrom: "desc" } }),
+    db.nutritionGoal.findFirst({ where: { userId, validFrom: { lte: new Date() }, OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }] }, orderBy: { validFrom: "desc" } }),
     db.meal.findMany({ where: { userId }, include: { items: true }, orderBy: { eatenAt: "desc" } }),
     db.weightEntry.findMany({ where: { userId }, orderBy: { recordedAt: "asc" } }),
     db.activity.findMany({ where: { userId }, orderBy: { occurredAt: "desc" } }),
