@@ -1,4 +1,4 @@
-# Andrés Nutrición
+# Nutrición Andrés
 
 Aplicación mobile-first/PWA para registrar alimentación, macros, peso y actividad; visualizar tendencias; y analizar fotografías de comidas con confirmación humana. La IA detecta, la persona confirma y el motor nutricional calcula.
 

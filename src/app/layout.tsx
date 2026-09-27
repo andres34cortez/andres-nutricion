@@ -15,13 +15,13 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.APP_URL || "http://localhost:3000"),
-  title: "Andrés Nutrición",
+  title: "Nutrición Andrés",
   description: "Nutrición, entrenamiento y progreso personal.",
-  applicationName: "Andrés Nutrición",
+  applicationName: "Nutrición Andrés",
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Andrés" },
   formatDetection: { telephone: false },
-  openGraph: { title: "Andrés Nutrición", description: "Tu nutrición, entrenamiento y progreso.", type: "website" },
-  twitter: { card: "summary_large_image", title: "Andrés Nutrición", description: "Tu nutrición, entrenamiento y progreso." },
+  openGraph: { title: "Nutrición Andrés", description: "Tu nutrición, entrenamiento y progreso.", type: "website" },
+  twitter: { card: "summary_large_image", title: "Nutrición Andrés", description: "Tu nutrición, entrenamiento y progreso." },
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1, viewportFit: "cover", themeColor: "#0a4b3b" };

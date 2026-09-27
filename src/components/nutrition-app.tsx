@@ -17,6 +17,8 @@ type Composer = "menu" | "meal" | "weight" | "activity" | "photo" | null;
 const categories: MealCategory[] = ["Desayuno", "Almuerzo", "Merienda", "Cena", "Otros"];
 const today = () => new Date().toISOString().slice(0, 10);
 const fmt = new Intl.NumberFormat("es-AR");
+const STORAGE_KEY = "nutricion-andres-v1";
+const LEGACY_STORAGE_KEY = "andres-nutricion-v1";
 
 export function NutritionApp({ initialData, cloud = false }: { initialData?: AppData; cloud?: boolean }) {
   const [tab, setTab] = useState<Tab>("today");
@@ -24,8 +26,8 @@ export function NutritionApp({ initialData, cloud = false }: { initialData?: App
   const [data, setData] = useState<AppData>(() => initialData ?? createDemoData());
   const [ready, setReady] = useState(false);
 
-  useEffect(() => { const frame = requestAnimationFrame(() => { if (!cloud) { const saved = localStorage.getItem("andres-nutricion-v1"); if (saved) { try { setData(JSON.parse(saved)); } catch { /* conservar datos iniciales */ } } } setReady(true); }); return () => cancelAnimationFrame(frame); }, [cloud]);
-  useEffect(() => { if (ready && !cloud) localStorage.setItem("andres-nutricion-v1", JSON.stringify(data)); }, [data, ready, cloud]);
+  useEffect(() => { const frame = requestAnimationFrame(() => { if (!cloud) { const saved = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY); if (saved) { try { setData(JSON.parse(saved)); } catch { /* conservar datos iniciales */ } } } setReady(true); }); return () => cancelAnimationFrame(frame); }, [cloud]);
+  useEffect(() => { if (ready && !cloud) localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }, [data, ready, cloud]);
 
   const addMeal = async (entry: Omit<MealEntry, "id" | "date" | "source">) => { let id=crypto.randomUUID(); if(cloud){const category={Desayuno:"BREAKFAST",Almuerzo:"LUNCH",Merienda:"SNACK",Cena:"DINNER",Otros:"OTHER"}[entry.category];const response=await fetch("/api/meals",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({...entry,category})});if(!response.ok)return;id=(await response.json()).id} setData((old) => ({ ...old, meals: [...old.meals, { ...entry, id, date: today(), source: "manual" }] })); setComposer(null); };
   const addWeight = async (weightKg: number) => { let id=crypto.randomUUID();if(cloud){const response=await fetch("/api/weights",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({weightKg})});if(!response.ok)return;id=(await response.json()).id}setData((old) => ({ ...old, weights: [...old.weights, { id, date: today(), weightKg }] })); setComposer(null); };
@@ -51,7 +53,7 @@ function TodayView({ data, onDelete }: { data: AppData; onDelete: (id: string) =
   const meals = data.meals.filter((meal) => meal.date === today());
   const totals = meals.reduce((a, m) => ({ calories: a.calories + m.calories, protein: a.protein + m.protein, carbs: a.carbs + m.carbs, fat: a.fat + m.fat }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
   const dateLabel = new Intl.DateTimeFormat("es-AR", { weekday: "long", day: "numeric", month: "long" }).format(new Date());
-  return <div className="screen"><Header eyebrow="ANDRÉS NUTRICIÓN" title="Hoy" subtitle={capitalize(dateLabel)} />
+  return <div className="screen"><Header eyebrow="NUTRICIÓN ANDRÉS" title="Hoy" subtitle={capitalize(dateLabel)} />
     <section className="hero-card"><div className="row top"><div><p className="hero-label">CALORÍAS</p><p className="hero-value">{fmt.format(totals.calories)} <span>/ {fmt.format(data.profile.calorieGoal)} kcal</span></p></div><Badge className="pill dark">{pct(totals.calories, data.profile.calorieGoal)}%</Badge></div><Bar value={totals.calories} goal={data.profile.calorieGoal} light /><p className="hero-note">{totals.calories <= data.profile.calorieGoal ? <>Te quedan aproximadamente <strong>{fmt.format(data.profile.calorieGoal - totals.calories)} kcal</strong></> : <>Superaste tu objetivo configurado en <strong>{fmt.format(totals.calories - data.profile.calorieGoal)} kcal</strong></>}</p></section>
     <div className="macro-grid"><Macro label="Proteína" value={totals.protein} goal={data.profile.proteinGoal} color="green" /><Macro label="Carbos" value={totals.carbs} goal={data.profile.carbGoal} color="amber" /><Macro label="Grasas" value={totals.fat} goal={data.profile.fatGoal} color="coral" /></div>
     <section className="section"><div className="section-heading"><div><p className="eyebrow">Tus comidas</p><h2>Registro de hoy</h2></div><span className="count">{meals.length} ítems</span></div>
