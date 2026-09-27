@@ -7,7 +7,7 @@ import { db } from "@/server/db";
 export default async function HomePage() {
   let initialData;
   let cloud = false;
-  if (process.env.APP_DEMO_MODE === "false") {
+  if (process.env.APP_DEMO_MODE !== "true") {
     const session = await auth();
     if (!session) redirect("/sign-in");
     const profile = await db.profile.findUnique({ where: { userId: session.user.id } });
