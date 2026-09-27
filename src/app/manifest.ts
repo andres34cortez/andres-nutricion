@@ -1,0 +1,2 @@
+import type { MetadataRoute } from "next";
+export default function manifest(): MetadataRoute.Manifest { return { name: "Andrés Nutrición", short_name: "Andrés", description: "Nutrición, entrenamiento y progreso personal.", start_url: "/", display: "standalone", background_color: "#f6f8f4", theme_color: "#0a4b3b", orientation: "portrait", icons: [{ src: "/icon", sizes: "512x512", type: "image/png" }] }; }
