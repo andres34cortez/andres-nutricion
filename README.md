@@ -92,7 +92,7 @@ pnpm test:browser
 pnpm build
 ```
 
-Los tests cubren porciones, recetas, totales, promedios con cobertura, tendencia de peso, media móvil, objetivo histórico, límites de timezone y validación de IA.
+Los tests cubren porciones, recetas, totales, promedios con cobertura, tendencia de peso, media móvil, objetivo histórico, recomendación inicial editable de calorías/macros, límites de timezone y validación de IA.
 
 `test:records` y `test:browser` requieren el servidor local en `http://localhost:3000`, PostgreSQL y las variables locales en `.env`. Crean cuentas temporales con identificadores aleatorios y las eliminan al finalizar; no usan los datos del usuario admin. `test:browser` usa Chrome instalado en un contexto aislado de 390 × 844, sin acceder a las sesiones personales del navegador. No representa una prueba en iPhone real. Las pruebas del escáner en Vitest simulan Gemini, sin enviar fotografías ni consumir su API.
 
@@ -104,7 +104,7 @@ Los tests cubren porciones, recetas, totales, promedios con cobertura, tendencia
 - Todos los valores en cero requieren confirmación explícita (por ejemplo, agua); también se valida en el endpoint de registros.
 - La aplicación no almacena fotos. Solo persiste los datos confirmados. Una respuesta incierta del servidor no garantiza que no haya guardado: revisá el historial antes de repetir una escritura.
 
-El avance y las verificaciones pendientes están en `EXECUTION_PLAN.md`. Google OAuth aún requiere configuración y comprobación real; el PDF y el modo entrenamiento siguen pendientes.
+El avance y las verificaciones pendientes están en `EXECUTION_PLAN.md`. Google OAuth y Vercel ya están configurados; el PDF y el modo entrenamiento siguen pendientes.
 
 ## Despliegue en Vercel
 

@@ -1,6 +1,6 @@
 # Continuar Nutrición Andrés con otra IA
 
-Última actualización: 27 de septiembre de 2026.
+Última actualización: 28 de septiembre de 2026.
 
 Este archivo permite retomar el proyecto sin acceder al chat anterior. Es un checkpoint, no una afirmación de que toda la aplicación esté terminada. Contrastá siempre lo indicado con el código, `git status` y las pruebas. No contiene claves ni contraseñas.
 
@@ -15,8 +15,8 @@ Este archivo permite retomar el proyecto sin acceder al chat anterior. Es un che
 - Repositorio: `https://github.com/andres34cortez/andres-nutricion.git`.
 - Rama de trabajo actual: `main`.
 - Idioma: español rioplatense; interfaz pensada para celular/iPhone.
-- Hosting confirmado por el usuario: **Vercel**. Aún no se publicó ni se eligió/configuró PostgreSQL administrado de producción. No contratar servicios pagos sin consultar.
-- Google OAuth debe incorporarse; el código básico ya existe, faltan credenciales y validación real.
+- Hosting: **Vercel**, publicado en `https://andres-nutricion.vercel.app`. PostgreSQL administrado y variables de Producción están configurados.
+- Google OAuth funciona en Producción. `AUTH_SECRET` se corrigió el 28/09 tras confirmar `MissingSecret` en los logs de Vercel.
 - Entrenamiento/PDF se hace **al final**, aunque una tabla inicial lo ubicaba tercero. La instrucción posterior cambió el orden.
 - El indicador de conexión no debe aparecer cuando funciona: mostrar solo aviso rojo **Sin conexión** y ocultarlo al recuperar conexión.
 - El usuario pidió altura: ahora aparece destacada como **¿Cuánto medís? / Altura (cm)** en el primer paso del cuestionario y al principio de Perfil. Ejemplo: 1,75 m se ingresa como 175. Editable y persistente.
@@ -86,20 +86,20 @@ Leer `AGENTS.md`: esta versión de Next.js requiere consultar las guías instala
 | Registros | CRUD comidas/peso/actividad; validación, pertenencia, fechas locales; pruebas API + DB y navegador real; idempotencia de servidor en `/api/records` con ID de cliente | Sin bloqueo conocido en los casos probados |
 | Fotos | Detección Gemini, corregir/agregar/excluir ingredientes, cantidades/unidades, preguntas, catálogo/manual, confirmar y guardar; recálculo y datos faltantes protegidos | Probar el recorrido actualizado con fotos reales del usuario; pruebas nuevas de scanner usan mocks |
 | Cuestionario | Nuevos perfiles sin completar pasan por 4 pasos; hábitos/consumos/actividad/objetivos persistentes; repetir desde Perfil conserva historial | Revisiones generales de UX/accesibilidad antes de publicar |
+| Recomendación nutricional | El paso 4 calcula mantenimiento y una propuesta inicial editable de calorías/macros según edad, sexo biológico, altura, peso, actividad, entrenamiento y objetivo; permite restaurar la recomendación | Es una estimación para adultos, no reemplaza indicación profesional |
 | Altura | Campo destacado en cuestionario y Perfil; centímetros; edición con decimales; persistencia; límites 100–250; sin altura inventada | Sin bloqueo conocido en los casos probados |
 | Historial/reportes | Navegación de semanas/meses calendario y 7d/30d/90d; fecha de referencia y botones anterior/hoy/siguiente; objetivos históricos vigentes en vista diaria y reportes; verificación Playwright `scripts/verify-reports.mjs` | Sin bloqueo conocido en los casos probados |
 | Catálogo/recetas | UI y API de alimentos propios/favoritos, recetas por ingredientes y porciones, agregar al diario; unidades semilla corregidas; tests unitarios y de componentes completos | Sin bloqueo conocido en los casos probados |
-| Google | Provider condicional, botón de ingreso/vinculación y cierre de sesión | Credenciales OAuth, callbacks local/producción y prueba real de vinculación sin perder datos |
+| Google | Provider, ingreso, callback productivo, usuario nuevo → cuestionario, vinculación desde Perfil y cierre de sesión; endpoint y apertura de Google verificados en Vercel | Probar vinculación de una cuenta local real sin perder datos |
 | PWA/conexión | Manifest/iconos; health sin caché; solo rojo offline; service worker limita caché a recursos públicos | Instalación y funcionamiento real en iPhone, revisión completa de privacidad/caché; no hay cola offline de escrituras |
-| Publicación | Vercel elegido, build pasa; base PostgreSQL de producción en Neon configurada, migrada (`20260927190000_onboarding`) y sembrada (`seed`) | Importar proyecto en Vercel, configurar variables de entorno y probar despliegue remoto |
+| Publicación | Vercel productivo en `andres-nutricion.vercel.app`; Auth.js, Google, DB, build y alias productivo verificados | Instalación y uso continuado en iPhone real |
 | Entrenamiento | Solo modelos `Routine` y `RoutineDay` | Importación PDF, separación por días, sesión guiada, series/repeticiones/pesos e historial. Hacer último |
 
 ## 7. Próximo trabajo recomendado
 
-1. Configurar **Google OAuth**: solicitar `AUTH_GOOGLE_ID` y `AUTH_GOOGLE_SECRET` al usuario cuando esté listo para probar la vinculación real.
-2. Preparación para **Vercel**: Vincular repositorio a Vercel, aprovisionar PostgreSQL administrado en la nube (ej. Neon/Supabase), configurar variables de entorno de producción y ejecutar `prisma migrate deploy`.
-3. Verificación de PWA e instalación en iPhone real (requiere dispositivo físico).
-4. **Entrenamiento desde PDF** (última etapa acordada): importación de PDF, rutinas por días, sesiones guiadas y registro de pesos/repeticiones.
+1. Verificación de PWA e instalación en iPhone real (requiere dispositivo físico).
+2. Probar con uso real y ajustar la recomendación inicial según criterio del usuario/nutricionista.
+3. **Entrenamiento desde PDF** (última etapa acordada): importación de PDF, rutinas por días, sesiones guiadas y registro de pesos/repeticiones.
 
 ## 8. Mapa del código
 
@@ -111,7 +111,7 @@ Leer `AGENTS.md`: esta versión de Next.js requiere consultar las guías instala
 - `src/server/app-data.ts` y `src/app/api/data/route.ts`: lectura completa por usuario y serialización para UI. `MealEntry.id` identifica un ingrediente y `mealId` identifica la comida agrupada.
 - `src/lib/dates.ts` y `src/lib/reports.ts`: fechas locales y utilidades históricas. `src/lib/report-period.ts`, `src/lib/goal-history.ts`, `src/lib/period-summary.ts` y `src/components/reports-view.tsx`: semanas/meses calendario, navegación, cobertura y gráficos.
 - `src/components/library.tsx`, `/api/library`: catálogo, favoritos, recetas por porciones.
-- `src/components/questionnaire.tsx`, `src/lib/questionnaire.ts`, `/onboarding`, `/api/onboarding`: cuestionario. Perfil guarda campos escalares y JSON de respuestas.
+- `src/components/questionnaire.tsx`, `src/lib/questionnaire.ts`, `src/lib/nutrition-recommendation.ts`, `/onboarding`, `/api/onboarding`: cuestionario y recomendación editable. Perfil guarda campos escalares y JSON de respuestas.
 - `src/components/height-field.tsx`: altura compartida por cuestionario y Perfil. `src/components/profile-view.tsx` permite editarla y exportar datos.
 - `src/app/api/profile/route.ts` y `src/server/goals.ts`: perfil y vigencia de objetivos.
 - `src/auth.ts`, `/sign-in`, `src/components/account-controls.tsx`: autenticación y Google condicional.
@@ -132,7 +132,7 @@ pnpm test:browser
 node --env-file=.env scripts/verify-reports.mjs
 ```
 
-- Último resultado unitario/componentes: **88 tests, 12 archivos, todos pasan**; lint, TypeScript y build de producción también.
+- Último resultado unitario/componentes: **97 tests, 16 archivos, todos pasan**; lint, TypeScript y build de producción también.
 - `test:records`: servidor en 3000 + PostgreSQL. Crea dos cuentas temporales, verifica onboarding/perfil/altura, CRUD y fechas, rechazos sin pérdida de datos, 401/404 e aislamiento; limpia ambos usuarios por IDs exactos.
 - `test:browser`: Chrome instalado, perfil/contexto aislado de 390×844. Login por UI, editar altura y recargar, alta/edición/recarga/borrado de comidas/peso/actividad, macros proporcionales, consultas de DB y ausencia de desborde horizontal.
 - `scripts/verify-reports.mjs`: verificación Playwright de semanas y meses calendario, año bisiesto, objetivos históricos por medianoche local, comparación con período anterior y responsive 390px sin desborde horizontal.

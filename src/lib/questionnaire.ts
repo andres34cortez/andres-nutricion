@@ -3,6 +3,7 @@ import { z } from "zod";
 export const questionnaireSchema = z.object({
   name: z.string().trim().min(1).max(80),
   age: z.number().int().min(14).max(120),
+  sex: z.enum(["Masculino", "Femenino", "Prefiero no decirlo"]),
   height: z.number().min(100).max(250),
   weight: z.number().min(30).max(300),
   goal: z.enum(["Perder grasa", "Mantener peso", "Ganar masa muscular", "Mejorar hábitos"]),

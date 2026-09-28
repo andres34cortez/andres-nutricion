@@ -14,7 +14,7 @@ export async function PUT(request: Request) {
     const existing = await tx.profile.findUnique({ where: { userId } });
     const birthDate = new Date(); birthDate.setUTCFullYear(birthDate.getUTCFullYear() - p.age);
     await tx.user.update({ where: { id: userId }, data: { name: p.name } });
-    const data = { heightCm: p.height, birthDate, occupation: p.occupation, timezone: p.timezone, questionnaire: p, onboardingCompletedAt: new Date(), deletePhotosAfterAnalysis: true };
+    const data = { sex: p.sex === "Masculino" ? "MALE" as const : p.sex === "Femenino" ? "FEMALE" as const : "PREFER_NOT_TO_SAY" as const, heightCm: p.height, birthDate, occupation: p.occupation, timezone: p.timezone, questionnaire: p, onboardingCompletedAt: new Date(), deletePhotosAfterAnalysis: true };
     await tx.profile.upsert({ where: { userId }, update: data, create: { userId, ...data, initialWeightKg: p.weight } });
     if (!existing?.onboardingCompletedAt && !(await tx.weightEntry.count({ where: { userId } }))) {
       await tx.weightEntry.create({ data: { userId, weightKg: p.weight, recordedAt: new Date(), note: "Cuestionario inicial" } });

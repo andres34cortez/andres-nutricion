@@ -15,7 +15,7 @@ export default async function OnboardingPage() {
   const previous = questionnaireSchema.partial().safeParse(p?.questionnaire);
   const now = new Date().getTime();
   return <Questionnaire required={!p?.onboardingCompletedAt || p.heightCm == null} initial={{
-    ...(previous.success ? previous.data : {}), name: user.name ?? "", height: p?.heightCm ?? undefined,
+    ...(previous.success ? previous.data : {}), name: user.name ?? "", sex: p?.sex === "MALE" ? "Masculino" : p?.sex === "FEMALE" ? "Femenino" : "Prefiero no decirlo", height: p?.heightCm ?? undefined,
     age: p?.birthDate ? Math.floor((now - p.birthDate.getTime()) / 31557600000) : undefined,
     weight: weight?.weightKg ?? p?.initialWeightKg ?? undefined, timezone: p?.timezone,
     calorieGoal: goal?.calories, proteinGoal: goal?.protein, carbGoal: goal?.carbs ?? undefined, fatGoal: goal?.fat,
