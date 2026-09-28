@@ -3,6 +3,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { getAppData } from "@/server/app-data";
 import { db } from "@/server/db";
+import { requiresOnboarding } from "@/lib/onboarding-state";
 
 export default async function HomePage() {
   let initialData;
@@ -11,7 +12,7 @@ export default async function HomePage() {
     const session = await auth();
     if (!session) redirect("/sign-in");
     const profile = await db.profile.findUnique({ where: { userId: session.user.id } });
-    if (!profile?.onboardingCompletedAt || profile.heightCm == null) redirect("/onboarding");
+    if (requiresOnboarding(profile)) redirect("/onboarding");
     initialData = await getAppData(session.user.id);
     cloud = true;
   }

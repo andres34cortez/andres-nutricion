@@ -28,7 +28,7 @@ export function AccountControls({ cloud, googleEnabled }: { cloud: boolean; goog
                   fontSize: 14,
                   cursor: "pointer",
                 }}
-                onClick={() => void signIn("google", { callbackUrl: "/" })}
+                onClick={() => void signIn("google", { redirectTo: "/" })}
               >
                 Vincular mi cuenta de Google
               </button>
@@ -61,4 +61,3 @@ export function AccountControls({ cloud, googleEnabled }: { cloud: boolean; goog
     </section>
   );
 }
-
