@@ -84,7 +84,7 @@ Leer `AGENTS.md`: esta versión de Next.js requiere consultar las guías instala
 | Área | Implementado y/o verificado | Todavía pendiente |
 |---|---|---|
 | Registros | CRUD comidas/peso/actividad; validación, pertenencia, fechas locales; pruebas API + DB y navegador real; idempotencia de servidor en `/api/records` con ID de cliente | Sin bloqueo conocido en los casos probados |
-| Fotos | Vista previa inmediata; preparación/reducción en memoria; estados “Preparando” y “Analizando”; detección Gemini con cadena 3.8→3.6→3.5 Lite→3.1 Lite ante 429/5xx; error específico y reintento sin perder la foto; corregir/agregar/excluir ingredientes, cantidades/unidades, catálogo/manual, confirmar y guardar. Verificado por componentes, navegador móvil y API real con imagen sintética | Repetir una foto real de comida desde el iPhone después del hotfix 0.1.4 |
+| Fotos | Vista previa inmediata; preparación/reducción en memoria; estados “Preparando” y “Analizando”; detección Gemini con cadena 3.8→3.6→3.5 Lite→3.1 Lite ante 429/5xx; error específico y reintento sin perder la foto; corregir/agregar/excluir ingredientes, cantidades/unidades, catálogo personal/referencias generales/manual, confirmar y guardar. Los recipientes se descartan del nombre y café con leche solicita capacidad y tipo de leche antes de calcular. Verificado por componentes, navegador móvil y API real con imagen sintética | Repetir una foto real de café con leche desde el iPhone después de publicar 0.1.5 |
 | Cuestionario | Nuevos perfiles sin completar pasan por 4 pasos; hábitos/consumos/actividad/objetivos persistentes; repetir desde Perfil conserva historial | Revisiones generales de UX/accesibilidad antes de publicar |
 | Recomendación nutricional | El paso 4 calcula mantenimiento y una propuesta inicial editable de calorías/macros según edad, sexo biológico, altura, peso, actividad, entrenamiento y objetivo; permite restaurar la recomendación | Es una estimación para adultos, no reemplaza indicación profesional |
 | Altura | Campo destacado en cuestionario y Perfil; centímetros; edición con decimales; persistencia; límites 100–250; sin altura inventada | Sin bloqueo conocido en los casos probados |
@@ -106,6 +106,7 @@ Leer `AGENTS.md`: esta versión de Next.js requiere consultar las guías instala
 - `src/components/nutrition-app.tsx`: pestañas, apertura de formularios, guardado/refresco, edición/borrado, vista diaria e historial con objetivos vigentes en la fecha (`goalForDay`).
 - `src/components/record-editor.tsx`: cantidades y nutrición editable. Conserva una base para recalcular sin deriva de redondeo; protege doble envío y muestra errores sin descartar datos.
 - `src/components/food-scanner.tsx` y `src/lib/photo-processing.ts`: vista previa, reducción transitoria, progreso, reintento y revisión; pasa `missingNutrition` al editor para campos desconocidos vacíos.
+- `src/lib/food-reference.ts`, `FoodReference` en Prisma y la migración `20260929104000_food_references`: base global inicial de 26 referencias, alias en español, descarte de recipientes y selección de tamaño para bebidas. El catálogo personal conserva prioridad.
 - `src/lib/record-validation.ts`: validación compartida. `zeroNutritionConfirmed` es confirmación transitoria; `/api/records` no la intenta escribir como columna Prisma.
 - `src/app/api/records/route.ts`: CRUD unificado con idempotencia en `POST` usando ID de cliente; transacciones en comidas y ownership.
 - `src/server/app-data.ts` y `src/app/api/data/route.ts`: lectura completa por usuario y serialización para UI. `MealEntry.id` identifica un ingrediente y `mealId` identifica la comida agrupada.
@@ -132,7 +133,7 @@ pnpm test:browser
 node --env-file=.env scripts/verify-reports.mjs
 ```
 
-- Versión preparada: **0.1.4**. **101 tests en 17 archivos**, lint, TypeScript y build pasan; `test:ai` recorrió la cadena y detectó Arroz, Carne y Brócoli con una imagen generada en memoria.
+- Versión preparada: **0.1.5**. **105 tests en 18 archivos**, lint, TypeScript y build pasan; `test:ai` recorrió la cadena y detectó Huevo, Carne y Brócoli con una imagen generada en memoria. `test:browser` confirmó recipiente → café con leche → 200 ml → leche descremada → 38 kcal usando la base global, sin guardar la foto.
 - `test:records`: servidor en 3000 + PostgreSQL. Crea dos cuentas temporales, verifica onboarding/perfil/altura, CRUD y fechas, rechazos sin pérdida de datos, 401/404 e aislamiento; limpia ambos usuarios por IDs exactos.
 - `test:browser`: Chrome instalado, perfil/contexto aislado de 390×844. Login por UI; vista previa/progreso/error/reintento de foto; editar altura y recargar; alta/edición/recarga/borrado de comidas/peso/actividad; macros proporcionales, consultas de DB y ausencia de desborde horizontal.
 - `scripts/verify-reports.mjs`: verificación Playwright de semanas y meses calendario, año bisiesto, objetivos históricos por medianoche local, comparación con período anterior y responsive 390px sin desborde horizontal.

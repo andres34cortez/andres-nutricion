@@ -8,13 +8,14 @@ const mealLabels: Record<MealCategory, Label> = { BREAKFAST: "Desayuno", LUNCH: 
 const activityLabels: Record<ActivityType, AppData["activities"][number]["type"]> = { GYM: "Gym", CROSSFIT: "CrossFit", WALK: "Caminata", OTHER: "Otro" };
 
 export async function getAppData(userId: string): Promise<AppData> {
-  const [user, goal, meals, weights, activities, foods, recipes, goals] = await Promise.all([
+  const [user, goal, meals, weights, activities, foods, foodReferences, recipes, goals] = await Promise.all([
     db.user.findUniqueOrThrow({ where: { id: userId }, include: { profile: true } }),
     db.nutritionGoal.findFirst({ where: { userId, validFrom: { lte: new Date() }, OR: [{ validUntil: null }, { validUntil: { gt: new Date() } }] }, orderBy: { validFrom: "desc" } }),
     db.meal.findMany({ where: { userId }, include: { items: true }, orderBy: { eatenAt: "desc" } }),
     db.weightEntry.findMany({ where: { userId }, orderBy: { recordedAt: "asc" } }),
     db.activity.findMany({ where: { userId }, orderBy: { occurredAt: "desc" } }),
     db.food.findMany({ where: { userId }, orderBy: { name: "asc" } }),
+    db.foodReference.findMany({ where: { active: true }, orderBy: { name: "asc" } }),
     db.recipe.findMany({ where: { userId }, include: { ingredients: true }, orderBy: { name: "asc" } }),
     db.nutritionGoal.findMany({ where: { userId }, orderBy: { validFrom: "desc" } }),
   ]);
@@ -26,6 +27,7 @@ export async function getAppData(userId: string): Promise<AppData> {
     weights: weights.map((entry) => ({ id: entry.id, timestamp: entry.recordedAt.toISOString(), date: dateKeyInTimeZone(entry.recordedAt, timezone), weightKg: entry.weightKg })),
     activities: activities.map((entry) => ({ id: entry.id, timestamp: entry.occurredAt.toISOString(), date: dateKeyInTimeZone(entry.occurredAt, timezone), type: activityLabels[entry.type], duration: entry.durationMinutes || 0, detail: entry.routineDay || entry.notes || undefined, distanceKm: entry.distanceKm ?? undefined, steps: entry.steps ?? undefined })),
     foods: foods.map(({ id, name, servingAmount, servingUnit, calories, protein, carbs, fat, favorite }) => ({ id, name, servingAmount, servingUnit, calories, protein, carbs, fat, favorite })),
+    foodReferences: foodReferences.map(({ id, name, aliases, servingAmount, servingUnit, calories, protein, carbs, fat, source, sourceRef, note }) => ({ id, name, aliases, servingAmount, servingUnit, calories, protein, carbs, fat, source, sourceRef, note })),
     recipes: recipes.map(({ id, name, description, servings, ingredients }) => ({ id, name, description, servings, ingredients: ingredients.map(({ foodId, quantity, unit }) => ({ foodId, quantity, unit })) })),
     goals: goals.map(({ validFrom, validUntil, calories, protein, carbs, fat }) => ({ validFrom: validFrom.toISOString(), validUntil: validUntil?.toISOString() ?? null, calories, protein, carbs, fat })),
   };

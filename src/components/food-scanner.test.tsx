@@ -4,7 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Food } from "@/lib/app-types";
+import type { Food, FoodReference } from "@/lib/app-types";
 import type { RecordInput } from "@/lib/record-validation";
 import type { DetectedMeal } from "@/lib/validation";
 import { FoodScanner } from "./food-scanner";
@@ -30,6 +30,8 @@ const detected: DetectedMeal = {
   foods: [{ name: "Arroz", estimatedQuantity: 150, unit: "g", preparation: "cocido", needsClarification: false }],
   questions: [], warnings: ["La porción es aproximada."],
 };
+const coffeeMilkWhole: FoodReference = { id: "ref-coffee-milk-whole", name: "Café con leche entera, mitad leche, sin azúcar", aliases: ["café con leche", "taza de café con leche"], servingAmount: 100, servingUnit: "ml", calories: 31, protein: 1.7, carbs: 2.3, fat: 1.6, source: "USDA FoodData Central", note: "Estimación 50% café y 50% leche entera." };
+const coffeeMilkSkim: FoodReference = { id: "ref-coffee-milk-skim", name: "Café con leche descremada, mitad leche, sin azúcar", aliases: ["café con leche descremada"], servingAmount: 100, servingUnit: "ml", calories: 19, protein: 1.8, carbs: 2.5, fat: 0.1, source: "USDA FoodData Central", note: "Estimación 50% café y 50% leche descremada." };
 
 function mockAnalysis(value: unknown = detected) {
   const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => value });
@@ -69,7 +71,7 @@ describe("FoodScanner", () => {
     expect(screen.getByRole("button", { name: "Confirmar y completar nutrición" })).toBeDisabled();
     await user.clear(screen.getByLabelText("Ingrediente detectado"));
     await user.type(screen.getByLabelText("Ingrediente detectado"), "Arroz integral cocido");
-    await user.selectOptions(screen.getByLabelText("Usar valores de mi catálogo"), food.id);
+    await user.selectOptions(screen.getByLabelText("Usar valores nutricionales"), food.id);
     await user.selectOptions(screen.getByLabelText("¿Agregaste aceite?"), "No");
     await user.click(screen.getByRole("button", { name: "Confirmar y completar nutrición" }));
 
@@ -86,7 +88,7 @@ describe("FoodScanner", () => {
     await user.click(screen.getByRole("button", { name: "Volver a ingredientes" }));
     expect(screen.getByLabelText("Ingrediente detectado")).toHaveValue("Arroz integral cocido");
     expect(screen.getByLabelText("¿Agregaste aceite?")).toHaveValue("No");
-    expect(screen.getByLabelText("Usar valores de mi catálogo")).toHaveValue(food.id);
+    expect(screen.getByLabelText("Usar valores nutricionales")).toHaveValue(food.id);
     expect(screen.queryByLabelText("Foto de comida")).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -95,7 +97,7 @@ describe("FoodScanner", () => {
     mockAnalysis({ ...detected, foods: [{ ...detected.foods[0], estimatedQuantity: 1.5, unit: "tazas" }] });
     render(<FoodScanner foods={[food]} timezone="UTC" onSave={vi.fn()} />);
     const user = await analyze();
-    await user.selectOptions(screen.getByLabelText("Usar valores de mi catálogo"), food.id);
+    await user.selectOptions(screen.getByLabelText("Usar valores nutricionales"), food.id);
     expect(screen.getByText(/Unidades incompatibles/)).toHaveTextContent("No convertimos unidades automáticamente");
     await user.click(screen.getByRole("button", { name: "Confirmar y completar nutrición" }));
     expect(props().missingNutrition).toEqual([0]);
@@ -106,7 +108,7 @@ describe("FoodScanner", () => {
     mockAnalysis({ ...detected, foods: [{ name: "Arroz", needsClarification: true }] });
     render(<FoodScanner foods={[food]} timezone="UTC" onSave={vi.fn()} />);
     const user = await analyze();
-    await user.selectOptions(screen.getByLabelText("Usar valores de mi catálogo"), food.id);
+    await user.selectOptions(screen.getByLabelText("Usar valores nutricionales"), food.id);
     expect(screen.getByLabelText("Cantidad estimada")).toHaveValue(null);
     expect(screen.getByLabelText("Unidad")).toHaveValue("");
     expect(screen.getByRole("button", { name: "Confirmar y completar nutrición" })).toBeDisabled();
@@ -185,6 +187,31 @@ describe("FoodScanner", () => {
 
     finishAnalysis?.({ ok: true, json: async () => detected });
     await screen.findByRole("heading", { name: "Confirmá los ingredientes" });
+  });
+
+  it("treats a cup as portion context, auto-matches coffee with milk and calculates from its size and milk type", async () => {
+    mockAnalysis({
+      foods: [{ name: "Taza de café con leche", estimatedQuantity: 1, unit: "taza", needsClarification: true }],
+      questions: [{ id: "milk", question: "¿Qué tipo de leche usaste?", options: ["Entera", "Descremada"], foodName: "Café con leche" }],
+      warnings: [],
+    });
+    render(<FoodScanner foods={[]} references={[coffeeMilkWhole, coffeeMilkSkim]} timezone="UTC" onSave={vi.fn()} />);
+    const user = await analyze();
+
+    expect(screen.getByLabelText("Ingrediente detectado")).toHaveValue("Café con leche");
+    expect(screen.getByLabelText("Usar valores nutricionales")).toHaveValue(coffeeMilkWhole.id);
+    expect(screen.getByText(/La taza o el vaso no es un alimento/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Confirmar y completar nutrición" })).toBeDisabled();
+
+    await user.selectOptions(screen.getByLabelText(/La taza o el vaso no es un alimento/), "200");
+    expect(screen.getByLabelText("Cantidad estimada")).toHaveValue(200);
+    expect(screen.getByLabelText("Unidad")).toHaveValue("ml");
+    await user.selectOptions(screen.getByLabelText("¿Qué tipo de leche usaste?"), "Descremada");
+    expect(screen.getByLabelText("Usar valores nutricionales")).toHaveValue(coffeeMilkSkim.id);
+
+    await user.click(screen.getByRole("button", { name: "Confirmar y completar nutrición" }));
+    expect(props().initial.items[0]).toMatchObject({ name: "Café con leche", quantity: 200, unit: "ml", calories: 38, protein: 3.6, carbs: 5, fat: 0.2, source: "ai_photo", estimated: true });
+    expect(props().missingNutrition).toEqual([]);
   });
 
   it("cancels a pending upload and discards its late result", async () => {

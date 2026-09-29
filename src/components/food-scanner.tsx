@@ -3,7 +3,8 @@
 import Image from "next/image";
 import { Camera, CheckCircle2, LoaderCircle, RefreshCcw, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { Food } from "@/lib/app-types";
+import type { Food, FoodReference } from "@/lib/app-types";
+import { drinkSizes, findNutritionSource, foodContentName, isUnresolvedDrinkContainer, normalizeFoodName, nutritionSources } from "@/lib/food-reference";
 import type { RecordInput } from "@/lib/record-validation";
 import { detectedMealSchema, type DetectedMeal } from "@/lib/validation";
 import { calculateFoodNutrition } from "@/lib/nutrition";
@@ -17,7 +18,7 @@ function sameUnit(first: string | undefined, second: string) {
   return Boolean(first?.trim()) && first?.trim().toLowerCase() === second.trim().toLowerCase();
 }
 
-export function FoodScanner({ foods, timezone, onSave }: { foods: Food[]; timezone: string; onSave: (value: RecordInput) => Promise<void> }) {
+export function FoodScanner({ foods, references = [], timezone, onSave }: { foods: Food[]; references?: FoodReference[]; timezone: string; onSave: (value: RecordInput) => Promise<void> }) {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState("");
   const [preparing, setPreparing] = useState(false);
@@ -32,6 +33,7 @@ export function FoodScanner({ foods, timezone, onSave }: { foods: Food[]; timezo
   const pending = useRef<AbortController | null>(null);
   const preview = useRef("");
   const selection = useRef(0);
+  const sources = nutritionSources(foods, references);
 
   useEffect(() => () => {
     selection.current += 1;
@@ -102,10 +104,14 @@ export function FoodScanner({ foods, timezone, onSave }: { foods: Food[]; timezo
       const parsed = detectedMealSchema.safeParse(data);
       if (!parsed.success) throw new Error("El análisis no devolvió ingredientes válidos.");
       if (pending.current !== controller) return;
-      setResult(parsed.data);
-      setSelected(parsed.data.foods.map(() => true));
+      const meal = { ...parsed.data, foods: parsed.data.foods.map((food) => ({ ...food, name: foodContentName(food.name) })) };
+      setResult(meal);
+      setSelected(meal.foods.map(() => true));
       setAnswers({});
-      setMatches({});
+      setMatches(Object.fromEntries(meal.foods.flatMap((food, index) => {
+        const source = findNutritionSource(food.name, sources);
+        return source ? [[index, source.id]] : [];
+      })));
       clearFile();
     } catch (cause) {
       if (pending.current !== controller) return;
@@ -124,19 +130,31 @@ export function FoodScanner({ foods, timezone, onSave }: { foods: Food[]; timezo
     setResult((current) => current && { ...current, foods: current.foods.map((food, i) => i === index ? { ...food, ...patch } : food) });
   }
 
+  function answerQuestion(question: DetectedMeal["questions"][number], answer: string) {
+    setAnswers((current) => ({ ...current, [question.id]: answer }));
+    if (!result) return;
+    const target = question.foodName
+      ? result.foods.findIndex((food) => normalizeFoodName(food.name).includes(normalizeFoodName(question.foodName!)))
+      : result.foods.length === 1 ? 0 : -1;
+    if (target < 0) return;
+    const source = findNutritionSource(`${result.foods[target].name} ${answer}`, sources);
+    if (source) setMatches((current) => ({ ...current, [target]: source.id }));
+  }
+
   const validIngredients = result?.foods.every((food, i) => !selected[i] || (
     food.name.trim().length > 0 && food.name.trim().length <= 120 &&
     food.estimatedQuantity !== undefined && food.estimatedQuantity > 0 && food.estimatedQuantity <= 10000 &&
     Boolean(food.unit?.trim()) && (food.unit?.trim().length ?? 0) <= 30
   ));
-  const canContinue = selected.some(Boolean) && validIngredients && !result?.questions.some((question) => !answers[question.id]);
+  const unresolvedDrinkContainer = result?.foods.some((food, index) => selected[index] && isUnresolvedDrinkContainer(food.unit, sources.find((source) => source.id === matches[index])));
+  const canContinue = selected.some(Boolean) && validIngredients && !unresolvedDrinkContainer && !result?.questions.some((question) => !answers[question.id]);
 
   function prepareDraft() {
     if (!result || !canContinue) return;
     const missingNutrition: number[] = [];
     const items = result.foods.flatMap((food, i) => {
       if (!selected[i]) return [];
-      const source = foods.find((candidate) => candidate.id === matches[i]);
+      const source = sources.find((candidate) => candidate.id === matches[i]);
       const compatible = source && sameUnit(food.unit, source.servingUnit);
       const quantity = food.estimatedQuantity!;
       const item = {
@@ -190,7 +208,8 @@ export function FoodScanner({ foods, timezone, onSave }: { foods: Food[]; timezo
     </> : <>
       {result.warnings.map((warning, i) => <p key={i} className="notice">{warning}</p>)}
       {result.foods.map((food, i) => {
-        const source = foods.find((candidate) => candidate.id === matches[i]);
+        const source = sources.find((candidate) => candidate.id === matches[i]);
+        const needsDrinkSize = isUnresolvedDrinkContainer(food.unit, source);
         const incompatible = source && !sameUnit(food.unit, source.servingUnit);
         return <fieldset key={i} className="editor-item">
           <legend>Ingrediente {i + 1}</legend>
@@ -201,17 +220,22 @@ export function FoodScanner({ foods, timezone, onSave }: { foods: Food[]; timezo
             <label className="field"><span>Cantidad estimada</span><input disabled={!selected[i]} type="number" min="0.1" max="10000" step="any" placeholder="Confirmar cantidad" value={food.estimatedQuantity ?? ""} onChange={(event) => updateFood(i, { estimatedQuantity: event.target.value === "" ? undefined : Number(event.target.value) })} /></label>
             <label className="field"><span>Unidad</span><input disabled={!selected[i]} maxLength={30} placeholder="Ej. g, ml o unidad" value={food.unit ?? ""} onChange={(event) => updateFood(i, { unit: event.target.value })} /></label>
           </div>
-          <label className="field"><span>Usar valores de mi catálogo</span><select disabled={!selected[i]} value={matches[i] ?? ""} onChange={(event) => setMatches((current) => ({ ...current, [i]: event.target.value }))}>
+          <label className="field"><span>Usar valores nutricionales</span><select disabled={!selected[i]} value={matches[i] ?? ""} onChange={(event) => setMatches((current) => ({ ...current, [i]: event.target.value }))}>
             <option value="">Completar macros manualmente</option>
-            {foods.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name} · {candidate.servingAmount} {candidate.servingUnit}</option>)}
+            {foods.length > 0 && <optgroup label="Mi catálogo">{foods.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name} · {candidate.servingAmount} {candidate.servingUnit}</option>)}</optgroup>}
+            {references.length > 0 && <optgroup label="Referencias generales">{references.map((candidate) => <option key={candidate.id} value={candidate.id}>{candidate.name} · {candidate.servingAmount} {candidate.servingUnit}</option>)}</optgroup>}
           </select></label>
-          {selected[i] && incompatible && <p className="notice">Unidades incompatibles: detectado {food.unit || "sin unidad"}, catálogo en {source.servingUnit}. No convertimos unidades automáticamente. Ingresá una cantidad medida en {source.servingUnit} y cambiá la unidad, o completá los macros manualmente.</p>}
+          {selected[i] && needsDrinkSize && <label className="field portion-question"><span>La taza o el vaso no es un alimento. ¿Qué capacidad tenía?</span><select defaultValue="" onChange={(event) => { if (event.target.value) updateFood(i, { estimatedQuantity: Number(event.target.value), unit: "ml" }); }}>
+            <option value="">Elegir tamaño</option>{drinkSizes.map((size) => <option key={size.value} value={size.value}>{size.label}</option>)}
+          </select></label>}
+          {selected[i] && incompatible && !needsDrinkSize && <p className="notice">Unidades incompatibles: detectado {food.unit || "sin unidad"}, referencia en {source.servingUnit}. No convertimos unidades automáticamente. Ingresá una cantidad medida en {source.servingUnit} y cambiá la unidad, o completá los macros manualmente.</p>}
           {selected[i] && !source && <p>Sin referencia nutricional: en el próximo paso deberás completar calorías, proteínas, carbos y grasas.</p>}
-          {selected[i] && source && !incompatible && <p>Se calcularán los macros de {source.name} para la cantidad indicada. Revisá que coincidan el alimento y su preparación.</p>}
+          {selected[i] && source?.kind === "reference" && <p className="reference-note"><strong>Referencia sugerida:</strong> {source.name}. {source.note} Fuente: {source.source}{source.sourceRef ? ` (${source.sourceRef})` : ""}.</p>}
+          {selected[i] && source && !incompatible && <p>Se calcularán los macros de {source.name} para la cantidad indicada. Revisá que coincidan el alimento, la leche, los agregados y su preparación.</p>}
         </fieldset>;
       })}
       <button type="button" onClick={() => { setResult((current) => current && { ...current, foods: [...current.foods, { name: "", needsClarification: false }] }); setSelected((current) => [...current, true]); }}>+ Agregar ingrediente no detectado</button>
-      {result.questions.map((question) => <label className="field" key={question.id}><span>{question.question}</span><select value={answers[question.id] ?? ""} onChange={(event) => setAnswers((current) => ({ ...current, [question.id]: event.target.value }))}>
+      {result.questions.map((question) => <label className="field" key={question.id}><span>{question.question}</span><select value={answers[question.id] ?? ""} onChange={(event) => answerQuestion(question, event.target.value)}>
         <option value="">Seleccionar</option>{question.options.map((option) => <option key={option}>{option}</option>)}
       </select></label>)}
       <p>Confirmá ingredientes, cantidades, unidades y preguntas. La foto no permite conocer los macros con precisión; usá tu catálogo o una etiqueta/fuente nutricional. Los valores faltantes quedarán vacíos, no en cero.</p>

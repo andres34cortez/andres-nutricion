@@ -18,7 +18,7 @@ Con `APP_DEMO_MODE=false`, la interfaz exige sesión y persiste los datos por us
 
 ## Modelo de datos
 
-`User` posee `Profile`, objetivos históricos `NutritionGoal`, `WeightEntry`, `Food`, `Meal`/`MealItem`, `Recipe`/`RecipeIngredient`, `Activity`, `Routine`/`RoutineDay` y `AIAnalysis`. Los objetivos usan `validFrom`/`validUntil`, por lo que un cambio no altera reportes pasados. Los valores nutricionales de un ítem se capturan al registrar la comida para preservar el historial ante futuras ediciones del catálogo.
+`User` posee `Profile`, objetivos históricos `NutritionGoal`, `WeightEntry`, `Food`, `Meal`/`MealItem`, `Recipe`/`RecipeIngredient`, `Activity`, `Routine`/`RoutineDay` y `AIAnalysis`. `FoodReference` contiene referencias nutricionales generales compartidas, separadas del catálogo personal. Los objetivos usan `validFrom`/`validUntil`, por lo que un cambio no altera reportes pasados. Los valores nutricionales de un ítem se capturan al registrar la comida para preservar el historial ante futuras ediciones del catálogo o de las referencias.
 
 ## Requisitos e instalación
 
@@ -64,6 +64,8 @@ Nunca use `NEXT_PUBLIC_GEMINI_API_KEY`.
 
 El selector acepta JPEG, PNG, WebP, HEIC o HEIF de hasta 20 MB. Antes de enviarla, el navegador muestra una vista previa y reduce la foto en memoria a un JPEG de hasta 1600 px y menos de 3 MB, manteniendo la solicitud por debajo del límite de Vercel. La imagen se envía a Gemini en memoria, la respuesta se marca `no-store` y la imagen nunca se persiste en base de datos, disco, logs ni historial. Solo se guardan fecha, hora, categoría y valores nutricionales confirmados. El resultado JSON se valida con Zod. Si Gemini falla, la foto permanece lista para reintentar; la app exige revisión antes de guardar y el registro manual sigue disponible.
 
+La revisión no trata tazas, vasos o platos como alimentos. Para bebidas como café con leche normaliza el contenido, solicita el volumen cuando solo conoce el recipiente y permite elegir el tipo de leche. La base inicial contiene 26 referencias comunes —incluidos café, leches, bebidas vegetales y variantes de café con leche— tomadas o calculadas desde promedios de USDA FoodData Central. Son estimaciones editables: la etiqueta de la marca, el catálogo personal o la indicación profesional tienen prioridad.
+
 ## Base de datos y Prisma
 
 Para desarrollo local, el repositorio incluye PostgreSQL 16 mediante Docker en el puerto `5433`, evitando conflictos con instalaciones nativas:
@@ -80,7 +82,7 @@ pnpm db:migrate
 pnpm db:seed
 ```
 
-Para producción, ejecute `pnpm prisma migrate deploy` durante el despliegue. Nunca modifique un objetivo vigente en retrospectiva: cierre `validUntil` y cree un nuevo registro.
+El script `pnpm build` ejecuta primero `prisma migrate deploy`; así Vercel aplica de forma idempotente las migraciones pendientes antes de compilar el código que las necesita. Nunca modifique un objetivo vigente en retrospectiva: cierre `validUntil` y cree un nuevo registro.
 
 ## Calidad
 
@@ -100,7 +102,7 @@ Los tests cubren porciones, recetas, totales, promedios con cobertura, tendencia
 ### Revisión de comidas y fotos
 
 - Corregí los ingredientes detectados y confirmá cantidad y unidad.
-- Elegí una referencia de tu catálogo con la misma unidad, o completá los cuatro valores nutricionales manualmente. Un dato faltante no equivale a cero.
+- Elegí una referencia de tu catálogo o de la base general con la misma unidad, o completá los cuatro valores nutricionales manualmente. Un dato faltante no equivale a cero.
 - Al cambiar cantidad, los macros se recalculan proporcionalmente desde una base estable. Si cambiás unidad, se vacían para evitar conversiones incorrectas.
 - Todos los valores en cero requieren confirmación explícita (por ejemplo, agua); también se valida en el endpoint de registros.
 - La aplicación no almacena fotos. Solo persiste los datos confirmados. Una respuesta incierta del servidor no garantiza que no haya guardado: revisá el historial antes de repetir una escritura.

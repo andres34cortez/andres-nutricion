@@ -155,6 +155,26 @@ model Food {
   @@index([userId, name])
 }
 
+model FoodReference {
+  id            String   @id
+  name          String   @unique
+  aliases       String[]
+  servingAmount Float
+  servingUnit   String
+  calories      Float
+  protein       Float
+  carbs         Float
+  fat           Float
+  source        String
+  sourceRef     String?
+  note          String?
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([active, name])
+}
+
 model Meal {
   id String @id @default(cuid())
   userId String

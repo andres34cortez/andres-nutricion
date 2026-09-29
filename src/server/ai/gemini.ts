@@ -4,7 +4,18 @@ import { z } from "zod";
 import { detectedMealSchema, type DetectedMeal } from "@/lib/validation";
 import type { AIProvider } from "./provider";
 
-const prompt = `Analizá esta foto de comida. Detectá ingredientes por separado, preparación visible, cantidad estimada y unidad. Generá preguntas solo para ambigüedades nutricionalmente relevantes como aceite, fritura, queso, mayonesa, azúcar o salsas. No calcules calorías. No inventes detalles. Respondé JSON con foods, questions y warnings. Cada food incluye name, preparation opcional, estimatedQuantity opcional, unit opcional, confidence 0-1 y needsClarification.`;
+const prompt = `Analizá esta foto de comida o bebida. Detectá alimentos e ingredientes comestibles, preparación visible, cantidad estimada y unidad.
+
+Reglas importantes:
+- Nunca listes el recipiente como alimento: taza, vaso, plato, bowl, cubiertos y envases solo sirven para estimar tamaño.
+- El nombre debe describir el contenido. Ejemplo: "Café con leche", no "Taza" ni "Taza de café".
+- Para una bebida mezclada cuya proporción no pueda verse (por ejemplo café con leche), devolvela como un alimento compuesto y preguntá solo lo que cambia sus macros: tipo de leche/bebida vegetal y azúcar u otros agregados.
+- Usá g o ml cuando la foto permita una estimación razonable. Usá taza o vaso únicamente si no podés estimar el volumen. En ese caso no preguntes su capacidad: la aplicación lo hará con tamaños estandarizados.
+- Separá ingredientes cuando sean visibles y nutricionalmente relevantes. No separes agua ni componentes despreciables.
+- Generá preguntas solo para ambigüedades relevantes como aceite, fritura, queso, mayonesa, azúcar, salsas, tipo de leche o tamaño del recipiente.
+- No calcules calorías ni inventes ingredientes.
+
+Respondé JSON con foods, questions y warnings. Cada food incluye name, preparation opcional, estimatedQuantity opcional, unit opcional, confidence 0-1 y needsClarification.`;
 
 export type GeminiErrorCode = "GEMINI_API_KEY_MISSING" | "AI_TEMPORARILY_UNAVAILABLE" | "AI_RATE_LIMITED" | "AI_AUTH_ERROR" | "AI_MODEL_ERROR" | "AI_INVALID_RESPONSE" | "AI_ERROR";
 

@@ -103,6 +103,18 @@ try {
   await page.route("**/api/ai/food", async (route) => {
     photoRequests += 1;
     await new Promise((resolve) => setTimeout(resolve, 600));
+    if (photoRequests > 1) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          foods: [{ name: "Taza de café con leche", estimatedQuantity: 1, unit: "taza", needsClarification: true }],
+          questions: [{ id: "milk", question: "¿Qué tipo de leche usaste?", options: ["Entera", "Descremada"], foodName: "Café con leche" }],
+          warnings: [],
+        }),
+      });
+      return;
+    }
     await route.fulfill({
       status: 503,
       contentType: "application/json",
@@ -121,6 +133,21 @@ try {
   await expect(page.getByAltText("Vista previa de la comida", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Reintentar análisis", exact: true })).toBeEnabled();
   assert.equal(photoRequests, 1, "The prepared photo must reach the analysis endpoint once");
+  await page.getByRole("button", { name: "Reintentar análisis", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Confirmá los ingredientes", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Ingrediente detectado", { exact: true })).toHaveValue("Café con leche");
+  await expect(page.getByRole("combobox", { name: /Usar valores nutricionales/ })).toContainText("Café con leche entera");
+  await page.getByLabel(/La taza o el vaso no es un alimento/).selectOption("200");
+  await page.getByRole("combobox", { name: /Qué tipo de leche usaste/ }).selectOption("Descremada");
+  await page.getByRole("button", { name: "Confirmar y completar nutrición", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Revisar comida", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Nombre", { exact: true })).toHaveValue("Café con leche");
+  await expect(page.getByLabel("Cantidad", { exact: true })).toHaveValue("200");
+  await expect(page.getByLabel("Unidad", { exact: true })).toHaveValue("ml");
+  await expect(page.getByLabel("Calorías", { exact: true })).toHaveValue("38");
+  await expect(page.getByLabel("Proteína (g)", { exact: true })).toHaveValue("3.6");
+  await expect(page.getByText(/Falta información nutricional/)).toHaveCount(0);
+  assert.equal(photoRequests, 2, "Retry must reuse the prepared photo and reach the successful review flow");
   const photoScreenshot = join(screenshotDirectory, "mobile-photo-retry.png");
   await page.screenshot({ path: photoScreenshot, fullPage: true });
   console.log(`Screenshot: ${photoScreenshot}`);
@@ -240,7 +267,7 @@ try {
   assert.equal(await db.activity.count({ where: { userId: fixture.id } }), 0);
   assert.deepEqual(browserErrors, [], "Browser must not report uncaught application errors");
   assert.equal(recordRequests.length, 9, "Three complete create/edit/delete flows must reach the real API");
-  console.log(`PASS: real mobile UI login, photo preview/progress/error/retry, profile decimal height edit-save-reload with Postgres persistence, meal/weight/activity create-edit-reload-delete, proportional macros, Argentina time and no horizontal overflow. API evidence: photo requests ${photoRequests}; records ${recordRequests.join(", ")}.`);
+  console.log(`PASS: real mobile UI login, photo preview/progress/error/retry, cup-to-coffee normalization, drink-size and milk selection using the shared nutrition database, profile decimal height edit-save-reload with Postgres persistence, meal/weight/activity create-edit-reload-delete, proportional macros, Argentina time and no horizontal overflow. API evidence: photo requests ${photoRequests}; records ${recordRequests.join(", ")}.`);
 } catch (error) {
   if (page && !page.isClosed()) {
     const failureScreenshot = join(screenshotDirectory, "failure.png");
