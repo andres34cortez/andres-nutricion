@@ -48,7 +48,7 @@ Consulte `.env.example`. Son obligatorias en producción:
 - `AI_PROVIDER`: actualmente `gemini`.
 - `GEMINI_API_KEY`: solo servidor.
 - `GEMINI_MODEL`: por defecto `gemini-3.8-flash`.
-- `GEMINI_FALLBACK_MODEL`: por defecto `gemini-3.6-flash`; se usa solo ante errores temporales o alta demanda.
+- `GEMINI_FALLBACK_MODELS`: lista separada por comas; por defecto `gemini-3.6-flash,gemini-3.5-flash-lite,gemini-3.1-flash-lite`. Se recorren únicamente ante errores temporales o alta demanda.
 - `APP_TIMEZONE`: por defecto `America/Argentina/San_Juan`.
 - `APP_DEMO_MODE`: `true` permite explorar datos locales; use `false` en producción para exigir inicio de sesión.
 

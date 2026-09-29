@@ -41,7 +41,7 @@ Este archivo permite retomar el proyecto sin acceder al chat anterior. Es un che
 
 - Next.js 16.3.6 / App Router, React 19, TypeScript, Tailwind y shadcn/ui.
 - Prisma 6 / PostgreSQL, Auth.js (`next-auth` v5 beta) con adapter Prisma y sesiones JWT.
-- Gemini vía `@google/genai`; modelo principal `gemini-3.8-flash` y fallback temporal verificado `gemini-3.6-flash`. No cambiar modelos sin comprobar disponibilidad real con la clave configurada.
+- Gemini vía `@google/genai`; modelo principal `gemini-3.8-flash` y cadena automática 3.6 → 3.5 Flash-Lite → 3.1 Flash-Lite ante 429/5xx. El 29/09 se comprobó que la saturación rota entre modelos: 3.8/3.6 devolvían 503 mientras 3.5/3.1 respondían. No cambiar modelos sin comprobar disponibilidad real.
 - Vitest + Testing Library; Playwright para recorridos reales aislados en Chrome.
 - Gestor: pnpm 10; Node.js 22 o compatible.
 - Última configuración verificada: `APP_DEMO_MODE=false`; PostgreSQL nativo en `127.0.0.1:5432`, base `nutricion_andres`.
@@ -84,7 +84,7 @@ Leer `AGENTS.md`: esta versión de Next.js requiere consultar las guías instala
 | Área | Implementado y/o verificado | Todavía pendiente |
 |---|---|---|
 | Registros | CRUD comidas/peso/actividad; validación, pertenencia, fechas locales; pruebas API + DB y navegador real; idempotencia de servidor en `/api/records` con ID de cliente | Sin bloqueo conocido en los casos probados |
-| Fotos | Vista previa inmediata; preparación/reducción en memoria; estados “Preparando” y “Analizando”; detección Gemini con fallback 3.8→3.6 ante 429/5xx; error específico y reintento sin perder la foto; corregir/agregar/excluir ingredientes, cantidades/unidades, catálogo/manual, confirmar y guardar. Verificado por componentes, navegador móvil y API real con imagen sintética | Probar una foto real de comida desde el iPhone después del despliegue 0.1.3 |
+| Fotos | Vista previa inmediata; preparación/reducción en memoria; estados “Preparando” y “Analizando”; detección Gemini con cadena 3.8→3.6→3.5 Lite→3.1 Lite ante 429/5xx; error específico y reintento sin perder la foto; corregir/agregar/excluir ingredientes, cantidades/unidades, catálogo/manual, confirmar y guardar. Verificado por componentes, navegador móvil y API real con imagen sintética | Repetir una foto real de comida desde el iPhone después del hotfix 0.1.4 |
 | Cuestionario | Nuevos perfiles sin completar pasan por 4 pasos; hábitos/consumos/actividad/objetivos persistentes; repetir desde Perfil conserva historial | Revisiones generales de UX/accesibilidad antes de publicar |
 | Recomendación nutricional | El paso 4 calcula mantenimiento y una propuesta inicial editable de calorías/macros según edad, sexo biológico, altura, peso, actividad, entrenamiento y objetivo; permite restaurar la recomendación | Es una estimación para adultos, no reemplaza indicación profesional |
 | Altura | Campo destacado en cuestionario y Perfil; centímetros; edición con decimales; persistencia; límites 100–250; sin altura inventada | Sin bloqueo conocido en los casos probados |
@@ -132,7 +132,7 @@ pnpm test:browser
 node --env-file=.env scripts/verify-reports.mjs
 ```
 
-- Versión preparada: **0.1.3**. Último resultado unitario/componentes: **101 tests, 17 archivos, todos pasan**; lint, TypeScript y build de producción también pasan.
+- Versión preparada: **0.1.4**. **101 tests en 17 archivos**, lint, TypeScript y build pasan; `test:ai` recorrió la cadena y detectó Arroz, Carne y Brócoli con una imagen generada en memoria.
 - `test:records`: servidor en 3000 + PostgreSQL. Crea dos cuentas temporales, verifica onboarding/perfil/altura, CRUD y fechas, rechazos sin pérdida de datos, 401/404 e aislamiento; limpia ambos usuarios por IDs exactos.
 - `test:browser`: Chrome instalado, perfil/contexto aislado de 390×844. Login por UI; vista previa/progreso/error/reintento de foto; editar altura y recargar; alta/edición/recarga/borrado de comidas/peso/actividad; macros proporcionales, consultas de DB y ausencia de desborde horizontal.
 - `scripts/verify-reports.mjs`: verificación Playwright de semanas y meses calendario, año bisiesto, objetivos históricos por medianoche local, comparación con período anterior y responsive 390px sin desborde horizontal.
