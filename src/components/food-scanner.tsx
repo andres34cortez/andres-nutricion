@@ -1,15 +1,17 @@
 "use client";
 
+import Image from "next/image";
+import { Camera, CheckCircle2, LoaderCircle, RefreshCcw, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Food } from "@/lib/app-types";
 import type { RecordInput } from "@/lib/record-validation";
 import { detectedMealSchema, type DetectedMeal } from "@/lib/validation";
 import { calculateFoodNutrition } from "@/lib/nutrition";
+import { formatPhotoSize, preparePhotoForUpload, validateSourcePhoto } from "@/lib/photo-processing";
 import { RecordEditor, blankItem } from "./record-editor";
 
 type MealDraft = Extract<RecordInput, { kind: "meal" }>;
 type DetectedFood = DetectedMeal["foods"][number];
-const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/heic"]);
 
 function sameUnit(first: string | undefined, second: string) {
   return Boolean(first?.trim()) && first?.trim().toLowerCase() === second.trim().toLowerCase();
@@ -17,6 +19,8 @@ function sameUnit(first: string | undefined, second: string) {
 
 export function FoodScanner({ foods, timezone, onSave }: { foods: Food[]; timezone: string; onSave: (value: RecordInput) => Promise<void> }) {
   const [file, setFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [preparing, setPreparing] = useState(false);
   const [result, setResult] = useState<DetectedMeal | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [selected, setSelected] = useState<boolean[]>([]);
@@ -26,25 +30,55 @@ export function FoodScanner({ foods, timezone, onSave }: { foods: Food[]; timezo
   const [draft, setDraft] = useState<{ meal: MealDraft; missingNutrition: number[] } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const pending = useRef<AbortController | null>(null);
+  const preview = useRef("");
+  const selection = useRef(0);
 
   useEffect(() => () => {
+    selection.current += 1;
     pending.current?.abort();
     pending.current = null;
+    if (preview.current) URL.revokeObjectURL(preview.current);
+    preview.current = "";
   }, []);
 
   function clearFile() {
+    selection.current += 1;
     setFile(null);
+    setPreparing(false);
+    if (preview.current) URL.revokeObjectURL(preview.current);
+    preview.current = "";
+    setPreviewUrl("");
     if (fileInput.current) fileInput.current.value = "";
   }
 
-  async function analyze() {
-    if (!file || pending.current) return;
+  async function selectPhoto(source: File | null) {
+    if (!source) return;
+    const currentSelection = selection.current + 1;
+    selection.current = currentSelection;
     setError("");
-    if (file.size > 8 * 1024 * 1024 || !allowedTypes.has(file.type)) {
-      setError("Elegí JPG, PNG, WebP o HEIC de hasta 8 MB.");
-      clearFile();
-      return;
+    setFile(null);
+    setPreparing(true);
+
+    try {
+      validateSourcePhoto(source);
+      if (preview.current) URL.revokeObjectURL(preview.current);
+      preview.current = URL.createObjectURL(source);
+      setPreviewUrl(preview.current);
+      const prepared = await preparePhotoForUpload(source);
+      if (selection.current !== currentSelection) return;
+      setFile(prepared);
+    } catch (cause) {
+      if (selection.current !== currentSelection) return;
+      setError(cause instanceof Error ? cause.message : "No pudimos preparar esta foto.");
+      setFile(null);
+    } finally {
+      if (selection.current === currentSelection) setPreparing(false);
     }
+  }
+
+  async function analyze() {
+    if (!file || preparing || pending.current) return;
+    setError("");
 
     const body = new FormData();
     body.append("image", file);
@@ -53,12 +87,16 @@ export function FoodScanner({ foods, timezone, onSave }: { foods: Food[]; timezo
     const timeout = setTimeout(() => controller.abort(), 60000);
     setBusy(true);
     // The image exists only in this request; review and saved records contain text and numbers.
-    clearFile();
     try {
       const response = await fetch("/api/ai/food", { method: "POST", body, signal: controller.signal, cache: "no-store" });
-      const data: unknown = await response.json();
+      const data: unknown = await response.json().catch(() => null);
       if (!response.ok) {
-        const message = data && typeof data === "object" && "error" in data && typeof data.error === "string" ? data.error : "No pudimos analizar la imagen.";
+        const fallback = response.status === 413
+          ? "La foto es demasiado pesada para enviarla. Elegí otra imagen."
+          : response.status === 401
+            ? "Tu sesión venció. Volvé a ingresar para analizar la foto."
+            : "No pudimos analizar la imagen.";
+        const message = data && typeof data === "object" && "error" in data && typeof data.error === "string" ? data.error : fallback;
         throw new Error(message);
       }
       const parsed = detectedMealSchema.safeParse(data);
@@ -68,10 +106,11 @@ export function FoodScanner({ foods, timezone, onSave }: { foods: Food[]; timezo
       setSelected(parsed.data.foods.map(() => true));
       setAnswers({});
       setMatches({});
+      clearFile();
     } catch (cause) {
       if (pending.current !== controller) return;
       const message = controller.signal.aborted ? "El análisis tardó demasiado." : cause instanceof Error ? cause.message : "No pudimos analizar la imagen.";
-      setError(`${message} Volvé a elegir la foto para reintentar o registrá la comida manualmente.`);
+      setError(`${message} La foto sigue lista: podés reintentar o registrar la comida manualmente.`);
     } finally {
       clearTimeout(timeout);
       if (pending.current === controller) {
@@ -127,13 +166,27 @@ export function FoodScanner({ foods, timezone, onSave }: { foods: Food[]; timezo
   return <div className="form">
     <h2>{result ? "Confirmá los ingredientes" : "Fotografiá tu comida"}</h2>
     {!result ? <>
-      <label className="upload">Tomar o elegir una foto
-        <input ref={fileInput} aria-label="Foto de comida" type="file" accept="image/jpeg,image/png,image/webp,image/heic" capture="environment" disabled={busy} onChange={(event) => { setFile(event.target.files?.[0] ?? null); setError(""); }} />
-        {file?.name}
-      </label>
+      <div className="photo-picker">
+        <label className={`upload${previewUrl ? " has-preview" : ""}`}>
+          {previewUrl && <Image src={previewUrl} alt="Vista previa de la comida" fill sizes="420px" unoptimized />}
+          <span className="upload-prompt">
+            {preparing ? <LoaderCircle className="spin" aria-hidden="true" /> : <Camera aria-hidden="true" />}
+            <strong>{preparing ? "Preparando la foto…" : previewUrl ? "Cambiar foto" : "Tomar o elegir una foto"}</strong>
+            {!previewUrl && <small>JPG, PNG, WebP, HEIC o HEIF</small>}
+          </span>
+          {busy && <span className="photo-loading-overlay" aria-hidden="true"><LoaderCircle className="spin" />Analizando…</span>}
+          <input ref={fileInput} aria-label="Foto de comida" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" capture="environment" disabled={busy} onChange={(event) => { void selectPhoto(event.target.files?.[0] ?? null); }} />
+        </label>
+        {previewUrl && !busy && <button type="button" className="photo-remove" aria-label="Quitar foto" onClick={clearFile}><X aria-hidden="true" /></button>}
+      </div>
+      <div className="photo-status" role="status" aria-live="polite">
+        {preparing && <><LoaderCircle className="spin" aria-hidden="true" /><span><strong>Preparando la foto</strong><small>La reducimos para enviarla más rápido.</small></span></>}
+        {!preparing && file && !busy && <><CheckCircle2 aria-hidden="true" /><span><strong>Foto lista · {formatPhotoSize(file.size)}</strong><small>Ya podés analizarla.</small></span></>}
+        {busy && <><LoaderCircle className="spin" aria-hidden="true" /><span><strong>Analizando con Gemini…</strong><small>Puede tardar unos segundos. No cierres esta pantalla.</small></span></>}
+      </div>
       <p className="notice">La foto se envía a Gemini para analizarla. La aplicación no guarda la imagen: solo los datos que confirmes.</p>
-      <button type="button" className="primary-button" disabled={!file || busy} onClick={analyze}>{busy ? "Analizando…" : "Analizar y revisar"}</button>
-      {busy && <button type="button" onClick={() => { pending.current?.abort(); pending.current = null; setBusy(false); setError("Análisis cancelado. Elegí una foto para volver a intentar."); }}>Cancelar análisis</button>}
+      <button type="button" className="primary-button" disabled={!file || busy || preparing} onClick={analyze}>{busy ? "Analizando…" : error && file ? <><RefreshCcw aria-hidden="true" /> Reintentar análisis</> : "Analizar y revisar"}</button>
+      {busy && <button type="button" onClick={() => { pending.current?.abort(); pending.current = null; setBusy(false); setError("Análisis cancelado. La foto sigue lista para volver a intentar."); }}>Cancelar análisis</button>}
     </> : <>
       {result.warnings.map((warning, i) => <p key={i} className="notice">{warning}</p>)}
       {result.foods.map((food, i) => {

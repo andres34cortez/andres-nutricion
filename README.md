@@ -48,6 +48,7 @@ Consulte `.env.example`. Son obligatorias en producción:
 - `AI_PROVIDER`: actualmente `gemini`.
 - `GEMINI_API_KEY`: solo servidor.
 - `GEMINI_MODEL`: por defecto `gemini-3.8-flash`.
+- `GEMINI_FALLBACK_MODEL`: por defecto `gemini-3.6-flash`; se usa solo ante errores temporales o alta demanda.
 - `APP_TIMEZONE`: por defecto `America/Argentina/San_Juan`.
 - `APP_DEMO_MODE`: `true` permite explorar datos locales; use `false` en producción para exigir inicio de sesión.
 
@@ -61,7 +62,7 @@ Nunca use `NEXT_PUBLIC_GEMINI_API_KEY`.
 4. Agregar `GEMINI_API_KEY=...`, `AI_PROVIDER=gemini` y, opcionalmente, `GEMINI_MODEL=...`.
 5. Reiniciar la aplicación.
 
-El endpoint acepta JPEG, PNG, WebP o HEIC de hasta 8 MB. La imagen se envía a Gemini en memoria, la respuesta se marca `no-store` y la imagen nunca se persiste en base de datos, disco, logs ni historial. Solo se guardan fecha, hora, categoría y valores nutricionales confirmados. El resultado JSON se valida con Zod. La app exige revisión antes de guardar y el registro manual sigue disponible ante cualquier falla.
+El selector acepta JPEG, PNG, WebP, HEIC o HEIF de hasta 20 MB. Antes de enviarla, el navegador muestra una vista previa y reduce la foto en memoria a un JPEG de hasta 1600 px y menos de 3 MB, manteniendo la solicitud por debajo del límite de Vercel. La imagen se envía a Gemini en memoria, la respuesta se marca `no-store` y la imagen nunca se persiste en base de datos, disco, logs ni historial. Solo se guardan fecha, hora, categoría y valores nutricionales confirmados. El resultado JSON se valida con Zod. Si Gemini falla, la foto permanece lista para reintentar; la app exige revisión antes de guardar y el registro manual sigue disponible.
 
 ## Base de datos y Prisma
 

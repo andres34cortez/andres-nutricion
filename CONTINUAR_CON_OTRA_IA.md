@@ -1,6 +1,6 @@
 # Continuar Nutrición Andrés con otra IA
 
-Última actualización: 28 de septiembre de 2026.
+Última actualización: 29 de septiembre de 2026.
 
 Este archivo permite retomar el proyecto sin acceder al chat anterior. Es un checkpoint, no una afirmación de que toda la aplicación esté terminada. Contrastá siempre lo indicado con el código, `git status` y las pruebas. No contiene claves ni contraseñas.
 
@@ -41,14 +41,14 @@ Este archivo permite retomar el proyecto sin acceder al chat anterior. Es un che
 
 - Next.js 16.3.6 / App Router, React 19, TypeScript, Tailwind y shadcn/ui.
 - Prisma 6 / PostgreSQL, Auth.js (`next-auth` v5 beta) con adapter Prisma y sesiones JWT.
-- Gemini vía `@google/genai`; modelo configurado por `GEMINI_MODEL` (configuración actual: `gemini-3.8-flash`). No cambiarlo sin comprobar disponibilidad.
+- Gemini vía `@google/genai`; modelo principal `gemini-3.8-flash` y fallback temporal verificado `gemini-3.6-flash`. No cambiar modelos sin comprobar disponibilidad real con la clave configurada.
 - Vitest + Testing Library; Playwright para recorridos reales aislados en Chrome.
 - Gestor: pnpm 10; Node.js 22 o compatible.
 - Última configuración verificada: `APP_DEMO_MODE=false`; PostgreSQL nativo en `127.0.0.1:5432`, base `nutricion_andres`.
 - `compose.yaml` ofrece una alternativa Docker en puerto 5433. No levantar una segunda base ni cambiar `DATABASE_URL` si la actual funciona.
 - Secretos locales en `.env`, ignorado por Git. `.env.example` contiene nombres y ejemplos, no secretos de producción.
-- La API Gemini ya está configurada localmente. OAuth Google usa **otras** credenciales: `AUTH_GOOGLE_ID` y `AUTH_GOOGLE_SECRET`, todavía pendientes. No pedir que se peguen secretos en el chat.
-- Hay acceso local de desarrollo existente; no se documenta la contraseña en este archivo. Las pruebas de registros y navegador crean sus propias cuentas. El acceso débil de desarrollo está bloqueado en producción por código; falta comprobar el despliegue real.
+- La API Gemini está configurada localmente. OAuth Google usa **otras** credenciales (`AUTH_GOOGLE_ID` y `AUTH_GOOGLE_SECRET`) y ya funciona en Producción. No pedir que se peguen secretos en el chat.
+- Hay acceso local de desarrollo existente; no se documenta la contraseña en este archivo. Las pruebas de registros y navegador crean sus propias cuentas. El acceso débil de desarrollo está bloqueado en producción por código.
 
 ## 5. Cómo retomar sin romper el entorno
 
@@ -84,7 +84,7 @@ Leer `AGENTS.md`: esta versión de Next.js requiere consultar las guías instala
 | Área | Implementado y/o verificado | Todavía pendiente |
 |---|---|---|
 | Registros | CRUD comidas/peso/actividad; validación, pertenencia, fechas locales; pruebas API + DB y navegador real; idempotencia de servidor en `/api/records` con ID de cliente | Sin bloqueo conocido en los casos probados |
-| Fotos | Detección Gemini, corregir/agregar/excluir ingredientes, cantidades/unidades, preguntas, catálogo/manual, confirmar y guardar; recálculo y datos faltantes protegidos | Probar el recorrido actualizado con fotos reales del usuario; pruebas nuevas de scanner usan mocks |
+| Fotos | Vista previa inmediata; preparación/reducción en memoria; estados “Preparando” y “Analizando”; detección Gemini con fallback 3.8→3.6 ante 429/5xx; error específico y reintento sin perder la foto; corregir/agregar/excluir ingredientes, cantidades/unidades, catálogo/manual, confirmar y guardar. Verificado por componentes, navegador móvil y API real con imagen sintética | Probar una foto real de comida desde el iPhone después del despliegue 0.1.3 |
 | Cuestionario | Nuevos perfiles sin completar pasan por 4 pasos; hábitos/consumos/actividad/objetivos persistentes; repetir desde Perfil conserva historial | Revisiones generales de UX/accesibilidad antes de publicar |
 | Recomendación nutricional | El paso 4 calcula mantenimiento y una propuesta inicial editable de calorías/macros según edad, sexo biológico, altura, peso, actividad, entrenamiento y objetivo; permite restaurar la recomendación | Es una estimación para adultos, no reemplaza indicación profesional |
 | Altura | Campo destacado en cuestionario y Perfil; centímetros; edición con decimales; persistencia; límites 100–250; sin altura inventada | Sin bloqueo conocido en los casos probados |
@@ -105,7 +105,7 @@ Leer `AGENTS.md`: esta versión de Next.js requiere consultar las guías instala
 
 - `src/components/nutrition-app.tsx`: pestañas, apertura de formularios, guardado/refresco, edición/borrado, vista diaria e historial con objetivos vigentes en la fecha (`goalForDay`).
 - `src/components/record-editor.tsx`: cantidades y nutrición editable. Conserva una base para recalcular sin deriva de redondeo; protege doble envío y muestra errores sin descartar datos.
-- `src/components/food-scanner.tsx`: foto transitoria y revisión; pasa `missingNutrition` al editor para campos desconocidos vacíos.
+- `src/components/food-scanner.tsx` y `src/lib/photo-processing.ts`: vista previa, reducción transitoria, progreso, reintento y revisión; pasa `missingNutrition` al editor para campos desconocidos vacíos.
 - `src/lib/record-validation.ts`: validación compartida. `zeroNutritionConfirmed` es confirmación transitoria; `/api/records` no la intenta escribir como columna Prisma.
 - `src/app/api/records/route.ts`: CRUD unificado con idempotencia en `POST` usando ID de cliente; transacciones en comidas y ownership.
 - `src/server/app-data.ts` y `src/app/api/data/route.ts`: lectura completa por usuario y serialización para UI. `MealEntry.id` identifica un ingrediente y `mealId` identifica la comida agrupada.
@@ -132,12 +132,12 @@ pnpm test:browser
 node --env-file=.env scripts/verify-reports.mjs
 ```
 
-- Último resultado unitario/componentes: **97 tests, 16 archivos, todos pasan**; lint, TypeScript y build de producción también.
+- Versión preparada: **0.1.3**. Último resultado unitario/componentes: **101 tests, 17 archivos, todos pasan**; lint, TypeScript y build de producción también pasan.
 - `test:records`: servidor en 3000 + PostgreSQL. Crea dos cuentas temporales, verifica onboarding/perfil/altura, CRUD y fechas, rechazos sin pérdida de datos, 401/404 e aislamiento; limpia ambos usuarios por IDs exactos.
-- `test:browser`: Chrome instalado, perfil/contexto aislado de 390×844. Login por UI, editar altura y recargar, alta/edición/recarga/borrado de comidas/peso/actividad, macros proporcionales, consultas de DB y ausencia de desborde horizontal.
+- `test:browser`: Chrome instalado, perfil/contexto aislado de 390×844. Login por UI; vista previa/progreso/error/reintento de foto; editar altura y recargar; alta/edición/recarga/borrado de comidas/peso/actividad; macros proporcionales, consultas de DB y ausencia de desborde horizontal.
 - `scripts/verify-reports.mjs`: verificación Playwright de semanas y meses calendario, año bisiesto, objetivos históricos por medianoche local, comparación con período anterior y responsive 390px sin desborde horizontal.
 - `test:smoke`: rutas públicas/PWA y rechazo de APIs privadas anónimas.
-- `test:ai` es distinto: llama **realmente** a Gemini, puede consumir cuota y usa el acceso local configurado por el script. No confundirlo con las pruebas con mocks ni ejecutarlo repetidamente sin necesidad. Hubo prueba real en una etapa anterior; no se repitió con fotos reales en este checkpoint.
+- `test:ai` llama **realmente** a Gemini, puede consumir cuota y usa el acceso local configurado por el script. El 28/09/2026 confirmó sesión → API → fallback Gemini 3.6 → tres ingredientes estructurados con una imagen de comida generada en memoria. No confundirlo con una foto real del usuario ni repetirlo sin necesidad.
 - Una vista móvil simulada en Chrome **no es un iPhone real**. La prueba de instalación/PWA en iOS sigue pendiente.
 - En desarrollo el logo flotante de Next puede tapar “Hoy”. El test navega con recarga normal en ese caso; no fuerza clics ni oculta errores de aplicación. No se ha movido el indicador de desarrollo.
 

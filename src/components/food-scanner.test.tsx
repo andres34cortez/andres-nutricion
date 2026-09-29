@@ -10,7 +10,12 @@ import type { DetectedMeal } from "@/lib/validation";
 import { FoodScanner } from "./food-scanner";
 
 type EditorProps = { initial: Extract<RecordInput, { kind: "meal" }>; missingNutrition: number[]; onBack: () => void };
-const { editor } = vi.hoisted(() => ({ editor: vi.fn() }));
+const { editor, preparePhoto } = vi.hoisted(() => ({ editor: vi.fn(), preparePhoto: vi.fn() }));
+
+vi.mock("@/lib/photo-processing", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/photo-processing")>(),
+  preparePhotoForUpload: preparePhoto,
+}));
 
 vi.mock("./record-editor", () => ({
   blankItem: { name: "", quantity: 100, unit: "g", calories: 0, protein: 0, carbs: 0, fat: 0, source: "manual", estimated: false },
@@ -39,12 +44,18 @@ function props(): EditorProps {
 async function analyze() {
   const user = userEvent.setup();
   await user.upload(screen.getByLabelText("Foto de comida"), new File(["image bytes"], "almuerzo.jpg", { type: "image/jpeg" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Analizar y revisar" })).toBeEnabled());
   await user.click(screen.getByRole("button", { name: "Analizar y revisar" }));
   await screen.findByRole("heading", { name: "Confirmá los ingredientes" });
   return user;
 }
 
-beforeEach(() => { editor.mockClear(); });
+beforeEach(() => {
+  editor.mockClear();
+  preparePhoto.mockImplementation(async (file: File) => file);
+  vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:food-photo");
+  vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => undefined);
+});
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe("FoodScanner", () => {
@@ -122,19 +133,20 @@ describe("FoodScanner", () => {
     expect(props().missingNutrition).toEqual([0, 1]);
   });
 
-  it("clears the image on errors and lets the user retry with a newly selected photo", async () => {
+  it("keeps the photo on errors and lets the user retry without selecting it again", async () => {
     const fetchMock = mockAnalysis({ foods: [] });
     render(<FoodScanner foods={[food]} timezone="UTC" onSave={vi.fn()} />);
     const user = userEvent.setup();
     await user.upload(screen.getByLabelText("Foto de comida"), new File(["image bytes"], "fallo.jpg", { type: "image/jpeg" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Analizar y revisar" })).toBeEnabled());
     await user.click(screen.getByRole("button", { name: "Analizar y revisar" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("El análisis no devolvió ingredientes válidos");
-    expect(screen.getByLabelText("Foto de comida")).toHaveValue("");
-    expect(screen.getByRole("button", { name: "Analizar y revisar" })).toBeDisabled();
-    expect(screen.queryByText("fallo.jpg")).not.toBeInTheDocument();
+    expect(screen.getByAltText("Vista previa de la comida")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Reintentar análisis" })).toBeEnabled();
 
     fetchMock.mockResolvedValue({ ok: true, json: async () => detected });
-    await analyze();
+    await user.click(screen.getByRole("button", { name: "Reintentar análisis" }));
+    await screen.findByRole("heading", { name: "Confirmá los ingredientes" });
     expect(fetchMock).toHaveBeenCalledTimes(2);
     await user.click(screen.getByRole("button", { name: "Elegir otra foto" }));
     expect(screen.getByLabelText("Foto de comida")).toHaveValue("");
@@ -145,11 +157,34 @@ describe("FoodScanner", () => {
     const fetchMock = mockAnalysis();
     render(<FoodScanner foods={[]} timezone="UTC" onSave={vi.fn()} />);
     const file = new File(["content"], "archivo", { type: reason === "invalid" ? "application/pdf" : "image/jpeg" });
-    if (reason === "oversized") Object.defineProperty(file, "size", { value: 8 * 1024 * 1024 + 1 });
+    if (reason === "oversized") Object.defineProperty(file, "size", { value: 20 * 1024 * 1024 + 1 });
     fireEvent.change(screen.getByLabelText("Foto de comida"), { target: { files: [file] } });
-    fireEvent.click(screen.getByRole("button", { name: "Analizar y revisar" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("de hasta 8 MB");
+    expect(await screen.findByRole("alert")).toHaveTextContent(reason === "invalid" ? "JPG, PNG, WebP, HEIC o HEIF" : "supera los 20 MB");
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("shows preparation, preview, ready and analysis progress states", async () => {
+    let finishPreparation: ((file: File) => void) | undefined;
+    preparePhoto.mockImplementationOnce((file: File) => new Promise((resolve) => { finishPreparation = () => resolve(file); }));
+    let finishAnalysis: ((response: unknown) => void) | undefined;
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(() => new Promise((resolve) => { finishAnalysis = resolve; })));
+    render(<FoodScanner foods={[]} timezone="UTC" onSave={vi.fn()} />);
+    const user = userEvent.setup();
+    const photo = new File(["image"], "comida.heic", { type: "image/heic" });
+
+    await user.upload(screen.getByLabelText("Foto de comida"), photo);
+    expect(screen.getByAltText("Vista previa de la comida")).toBeVisible();
+    expect(screen.getByText("Preparando la foto")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Analizar y revisar" })).toBeDisabled();
+
+    finishPreparation?.(photo);
+    expect(await screen.findByText(/Foto lista/)).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Analizar y revisar" }));
+    expect(screen.getByText("Analizando con Gemini…")).toBeVisible();
+    expect(screen.getByAltText("Vista previa de la comida")).toBeVisible();
+
+    finishAnalysis?.({ ok: true, json: async () => detected });
+    await screen.findByRole("heading", { name: "Confirmá los ingredientes" });
   });
 
   it("cancels a pending upload and discards its late result", async () => {
@@ -159,12 +194,14 @@ describe("FoodScanner", () => {
     render(<FoodScanner foods={[]} timezone="UTC" onSave={vi.fn()} />);
     const user = userEvent.setup();
     await user.upload(screen.getByLabelText("Foto de comida"), new File(["image"], "comida.jpg", { type: "image/jpeg" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Analizar y revisar" })).toBeEnabled());
     await user.click(screen.getByRole("button", { name: "Analizar y revisar" }));
     await user.click(screen.getByRole("button", { name: "Cancelar análisis" }));
     expect(fetchMock.mock.calls[0][1].signal.aborted).toBe(true);
     finish?.({ ok: true, json: async () => detected });
     await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Análisis cancelado"));
     expect(screen.queryByRole("heading", { name: "Confirmá los ingredientes" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Analizar y revisar" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Reintentar análisis" })).toBeEnabled();
+    expect(screen.getByAltText("Vista previa de la comida")).toBeVisible();
   });
 });

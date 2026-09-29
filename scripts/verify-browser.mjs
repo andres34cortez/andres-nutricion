@@ -99,6 +99,34 @@ try {
   await expect(page.getByRole("heading", { name: "Hoy", exact: true })).toBeVisible();
   assert.equal(new URL(page.url()).pathname, "/", "Fixture should login without onboarding redirect");
 
+  let photoRequests = 0;
+  await page.route("**/api/ai/food", async (route) => {
+    photoRequests += 1;
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ error: "Gemini está con alta demanda en este momento. Esperá unos segundos y reintentá.", code: "AI_TEMPORARILY_UNAVAILABLE" }),
+    });
+  });
+  await page.getByRole("button", { name: "Agregar registro", exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Analizar comida con foto", exact: true }).click();
+  const onePixelPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z4p8AAAAASUVORK5CYII=", "base64");
+  await page.getByLabel("Foto de comida", { exact: true }).setInputFiles({ name: "comida-iphone.png", mimeType: "image/png", buffer: onePixelPng });
+  await expect(page.getByAltText("Vista previa de la comida", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Foto lista/)).toBeVisible();
+  await page.getByRole("button", { name: "Analizar y revisar", exact: true }).click();
+  await expect(page.getByText("Analizando con Gemini…", { exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog").getByRole("alert")).toContainText("Gemini está con alta demanda");
+  await expect(page.getByAltText("Vista previa de la comida", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Reintentar análisis", exact: true })).toBeEnabled();
+  assert.equal(photoRequests, 1, "The prepared photo must reach the analysis endpoint once");
+  const photoScreenshot = join(screenshotDirectory, "mobile-photo-retry.png");
+  await page.screenshot({ path: photoScreenshot, fullPage: true });
+  console.log(`Screenshot: ${photoScreenshot}`);
+  await page.unroute("**/api/ai/food");
+  await page.getByRole("dialog").getByRole("button", { name: "Cerrar", exact: true }).click();
+
   await page.getByRole("button", { name: "Perfil", exact: true }).click();
   await expect(page.getByLabel("Altura (cm)", { exact: true })).toHaveValue("178");
   await page.getByLabel("Altura (cm)", { exact: true }).fill("181.5");
@@ -212,7 +240,7 @@ try {
   assert.equal(await db.activity.count({ where: { userId: fixture.id } }), 0);
   assert.deepEqual(browserErrors, [], "Browser must not report uncaught application errors");
   assert.equal(recordRequests.length, 9, "Three complete create/edit/delete flows must reach the real API");
-  console.log(`PASS: real mobile UI login, profile decimal height edit-save-reload with Postgres persistence, meal/weight/activity create-edit-reload-delete, proportional macros, Argentina time and no horizontal overflow. API evidence: ${recordRequests.join(", ")}.`);
+  console.log(`PASS: real mobile UI login, photo preview/progress/error/retry, profile decimal height edit-save-reload with Postgres persistence, meal/weight/activity create-edit-reload-delete, proportional macros, Argentina time and no horizontal overflow. API evidence: photo requests ${photoRequests}; records ${recordRequests.join(", ")}.`);
 } catch (error) {
   if (page && !page.isClosed()) {
     const failureScreenshot = join(screenshotDirectory, "failure.png");
